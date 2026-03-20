@@ -1,0 +1,5 @@
+# BFG2 HTTP e2e (pytest + API client)
+pytest>=8.0,<9
+requests>=2.31.0
+python-dotenv>=1.0.0
+Pillow>=10.0.0
