@@ -8,6 +8,10 @@ Run: BASE_URL=http://localhost:3100 pytest bfg2/tests/e2e -m e2e
 When BFG2_E2E_SUPERUSER_* are set and BASE_URL is :8000 or a local host, that
 pre-seeded bootstrap user creates both workspaces (if the API allows).
 
+Optional register-mode identities (when not using superuser bootstrap), e.g. another
+backend already has the default emails: BFG2_E2E_CUSTOMER_EMAIL,
+BFG2_E2E_CUSTOMER2_EMAIL, BFG2_E2E_ADMIN2_EMAIL (defaults: customer_e2e@test.com, …).
+
 Roles:
 - bootstrap / workspace admin: creates workspaces
 - ws1 admin/customer/anonymous, ws2 admin/customer/anonymous
@@ -208,6 +212,9 @@ def _session():
     admin_email = os.environ.get("BFG2_E2E_ADMIN_EMAIL") or "admin@test.com"
     admin_password = os.environ.get("BFG2_E2E_ADMIN_PASSWORD")
     customer_password = os.environ.get("BFG2_E2E_CUSTOMER_PASSWORD")
+    customer_email = os.environ.get("BFG2_E2E_CUSTOMER_EMAIL") or "customer_e2e@test.com"
+    customer2_email = os.environ.get("BFG2_E2E_CUSTOMER2_EMAIL") or "customer2_e2e@test.com"
+    admin2_email = os.environ.get("BFG2_E2E_ADMIN2_EMAIL") or "admin2_e2e@test.com"
     if not customer_password:
         pytest.fail("BFG2_E2E_CUSTOMER_PASSWORD must be set in env for e2e (customer accounts)")
     use_superuser = _use_bootstrap_superuser(base)
@@ -228,7 +235,7 @@ def _session():
     cust1 = _create_customer_in_workspace(base, u1["token"], ws1["id"], u1["user_id"])
 
     # ws1 customer
-    u2 = _register_and_login(base, "customer_e2e@test.com", customer_password, "Customer", "E2E")
+    u2 = _register_and_login(base, customer_email, customer_password, "Customer", "E2E")
 
     # ws2 admin (same superuser when use_superuser, else separate admin2)
     if use_superuser:
@@ -237,13 +244,13 @@ def _session():
         ws2 = _create_workspace(base, u1["token"], "Test Workspace 2", ws2_slug)
         cust2 = _create_customer_in_workspace(base, u1["token"], ws2["id"], u1["user_id"])
     else:
-        u3 = _register_and_login(base, "admin2_e2e@test.com", admin_password, "Admin2", "E2E")
+        u3 = _register_and_login(base, admin2_email, admin_password, "Admin2", "E2E")
         ws2_slug = f"test-workspace-2-{uuid.uuid4().hex[:6]}"
         ws2 = _create_workspace(base, u3["token"], "Test Workspace 2", ws2_slug)
         cust2 = _create_customer_in_workspace(base, u3["token"], ws2["id"], u3["user_id"])
 
     # ws2 customer
-    u4 = _register_and_login(base, "customer2_e2e@test.com", customer_password, "Customer2", "E2E")
+    u4 = _register_and_login(base, customer2_email, customer_password, "Customer2", "E2E")
 
     return {
         "superadmin_token": u1["token"],

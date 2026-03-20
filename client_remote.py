@@ -4,6 +4,7 @@ Mimics DRF test client: .get, .post, .data, .status_code, force_authenticate.
 """
 import json
 import os
+import uuid
 
 import requests
 
@@ -26,6 +27,8 @@ class RemoteAPIClient:
         self._customer = None
         # Persist Set-Cookie (e.g. sessionid) across requests for anonymous storefront cart
         self._http = requests.Session()
+        # .NET storefront isolates carts by session header when unauthenticated
+        self._storefront_cart_session = uuid.uuid4().hex if token is None else None
         # Python server mounts module routes under /api/v1/ root.
         # Node server keeps /api/v1/shop, /api/v1/delivery prefixes.
         self._should_normalize = self.base_url.endswith(":8000")
@@ -82,6 +85,8 @@ class RemoteAPIClient:
                 headers["X-Workspace-Id"] = str(wid)
             if slug:
                 headers["X-Workspace-Slug"] = str(slug)
+        if self._storefront_cart_session:
+            headers["X-Bfg-Cart-Session"] = self._storefront_cart_session
         return headers
 
     def generic(self, method, path, data="", content_type="application/json", **extra):
