@@ -21,7 +21,7 @@ import os
 import urllib.parse
 from pathlib import Path
 
-# Load .env from src/server/.env (conftest is at server/bfg2/tests/conftest.py -> server = parent.parent.parent)
+# Load .env from project root or parent directories; fallback to cwd/.env
 try:
     from dotenv import load_dotenv
     _conftest_file = Path(__file__).resolve()
@@ -171,7 +171,7 @@ def _is_local_api_host(base: str) -> bool:
     try:
         u = urllib.parse.urlparse(base)
         host = (u.hostname or "").lower()
-        return host in ("localhost", "127.0.0.1", "::1")
+        return host in ("localhost", "127.0.0.1", "::1", "0.0.0.0")
     except Exception:
         return False
 
@@ -316,8 +316,7 @@ def admin_client(workspace, _session):
 
 
 @pytest.fixture
-def authenticated_client(admin_client, customer):
-    admin_client._customer = customer
+def authenticated_client(admin_client):
     return admin_client
 
 

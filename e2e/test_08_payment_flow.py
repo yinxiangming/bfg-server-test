@@ -93,11 +93,6 @@ class TestPaymentFlow:
         assert payment_res.data['status'] == 'pending'
         assert Decimal(str(payment_res.data['amount'])) == order_total
 
-    def test_process_payment(self, authenticated_client, workspace):
-        """Test payment processing action"""
-        # This is now covered in test_create_payment above
-        pass 
-    
     def test_gift_card_creation_and_redemption(self, authenticated_client, workspace, currency):
         """Test gift card creation and redemption via API (currency from fixture; seed finance/currencies if needed)."""
         create_res = authenticated_client.post('/api/v1/marketing/gift-cards/', {

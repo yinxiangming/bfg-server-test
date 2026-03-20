@@ -58,14 +58,16 @@ class TestStorefrontInventory:
 
     def test_inventory_changes_reflected(self, workspace, admin_client, anonymous_api_client, warehouse):
         """Test that product/variant created via API is visible in storefront"""
+        suf = uuid.uuid4().hex[:6]
         cat_res = admin_client.post('/api/v1/shop/categories/', {
-            "name": "Category 2", "slug": "category-2", "language": "en", "is_active": True
+            "name": f"Category 2 {suf}", "slug": f"category-2-{suf}", "language": "en", "is_active": True
         })
         cat_id = cat_res.data['id']
 
+        prod_slug = f"inventory-test-product-{suf}"
         prod_res = admin_client.post('/api/v1/shop/products/', {
             "name": "Inventory Test Product",
-            "slug": "inventory-test-product",
+            "slug": prod_slug,
             "price": "79.99",
             "category_ids": [cat_id],
             "language": "en",
@@ -76,14 +78,14 @@ class TestStorefrontInventory:
 
         var_res = admin_client.post('/api/v1/shop/variants/', {
             "product": prod_id,
-            "sku": "INV-TEST-001",
+            "sku": f"INV-TEST-001-{suf}",
             "name": "Inventory Variant",
             "price": "79.99",
             "stock_quantity": 200,
         })
         var_id = var_res.data['id']
 
-        detail_res = anonymous_api_client.get(f'/api/v1/store/products/inventory-test-product/')
+        detail_res = anonymous_api_client.get(f'/api/v1/store/products/{prod_slug}/')
         assert detail_res.status_code == 200
         variants = detail_res.data.get('variants', [])
         assert len(variants) > 0
@@ -93,14 +95,16 @@ class TestStorefrontInventory:
 
     def test_multiple_warehouse_inventory(self, workspace, admin_client, anonymous_api_client):
         """Test product with track_inventory is visible in storefront"""
+        suf = uuid.uuid4().hex[:6]
         cat_res = admin_client.post('/api/v1/shop/categories/', {
-            "name": "Category 3", "slug": "category-3", "language": "en", "is_active": True
+            "name": f"Category 3 {suf}", "slug": f"category-3-{suf}", "language": "en", "is_active": True
         })
         cat_id = cat_res.data['id']
 
+        prod_slug = f"multi-warehouse-product-{suf}"
         prod_res = admin_client.post('/api/v1/shop/products/', {
             "name": "Multi-Warehouse Product",
-            "slug": "multi-warehouse-product",
+            "slug": prod_slug,
             "price": "59.99",
             "category_ids": [cat_id],
             "language": "en",
@@ -111,14 +115,14 @@ class TestStorefrontInventory:
 
         var_res = admin_client.post('/api/v1/shop/variants/', {
             "product": prod_id,
-            "sku": "MULTI-WH-001",
+            "sku": f"MULTI-WH-001-{suf}",
             "name": "Multi Warehouse Variant",
             "price": "59.99",
             "stock_quantity": 150,
         })
         var_id = var_res.data['id']
 
-        detail_res = anonymous_api_client.get(f'/api/v1/store/products/multi-warehouse-product/')
+        detail_res = anonymous_api_client.get(f'/api/v1/store/products/{prod_slug}/')
         assert detail_res.status_code == 200
         variants = detail_res.data.get('variants', [])
         assert len(variants) > 0

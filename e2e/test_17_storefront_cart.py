@@ -79,14 +79,15 @@ class TestStorefrontCart:
     
     def test_cart_merge_on_login(self, workspace, admin_client, anonymous_api_client, customer_client):
         """Test guest cart and customer cart: anonymous then customer (three roles: anonymous, customer, admin)."""
+        suf = uuid.uuid4().hex[:6]
         # Setup: admin creates product
         cat_res = admin_client.post('/api/v1/shop/categories/', {
-            "name": "Toys", "slug": "toys", "language": "en", "is_active": True
+            "name": f"Toys {suf}", "slug": f"toys-{suf}", "language": "en", "is_active": True
         })
         cat_id = cat_res.data['id']
         
         prod_res = admin_client.post('/api/v1/shop/products/', {
-            "name": "Toy Car", "slug": "toy-car", "price": "15.99",
+            "name": f"Toy Car {suf}", "slug": f"toy-car-{suf}", "price": "15.99",
             "category_ids": [cat_id], "language": "en", "is_active": True,
             "track_inventory": False  # Disable inventory tracking for this test
         })
@@ -114,15 +115,16 @@ class TestStorefrontCart:
     
     def test_cart_item_enhanced_fields(self, workspace, admin_client, anonymous_api_client):
         """Test cart item enhanced fields (image_url, variant_options)"""
+        suf = uuid.uuid4().hex[:6]
         # Setup
         cat_res = admin_client.post('/api/v1/shop/categories/', {
-            "name": "Cart Category", "slug": "cart-category", "language": "en", "is_active": True
+            "name": f"Cart Category {suf}", "slug": f"cart-category-{suf}", "language": "en", "is_active": True
         })
         cat_id = cat_res.data['id']
         
         prod_res = admin_client.post('/api/v1/shop/products/', {
-            "name": "Cart Product",
-            "slug": "cart-product",
+            "name": f"Cart Product {suf}",
+            "slug": f"cart-product-{suf}",
             "price": "45.00",
             "category_ids": [cat_id],
             "language": "en",
@@ -134,7 +136,7 @@ class TestStorefrontCart:
         # Create variant with options
         var_res = admin_client.post('/api/v1/shop/variants/', {
             "product": prod_id,
-            "sku": "CART-VAR-001",
+            "sku": f"CART-VAR-001-{suf}",
             "name": "Medium Blue",
             "price": "45.00",
             "stock_quantity": 10,

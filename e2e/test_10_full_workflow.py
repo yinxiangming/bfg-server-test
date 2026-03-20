@@ -18,33 +18,34 @@ class TestFullWorkflow:
         3. Checkout & Payment
         4. Order Fulfillment
         """
+        suffix = uuid.uuid4().hex[:6]
         # --- Step 1: Setup ---
         # Warehouse
-        wh_res = authenticated_client.post('/api/v1/delivery/warehouses/', {"name": "Main WH", "code": "WH-MAIN"})
+        wh_res = authenticated_client.post('/api/v1/delivery/warehouses/', {"name": f"Main WH {suffix}", "code": f"WH-MAIN-{suffix}"})
         wh_id = wh_res.data['id']
         
         # Store
         store_res = authenticated_client.post('/api/v1/shop/stores/', {
-            "name": "Mega Store", "code": "mega-store", "default_warehouse": wh_id
+            "name": f"Mega Store {suffix}", "code": f"mega-store-{suffix}", "default_warehouse": wh_id
         })
         store_id = store_res.data['id']
         
         # Category
         cat_res = authenticated_client.post('/api/v1/shop/categories/', {
-            "name": "Gadgets", "slug": "gadgets", "language": "en"
+            "name": f"Gadgets {suffix}", "slug": f"gadgets-{suffix}", "language": "en"
         })
         cat_id = cat_res.data['id']
         
         # Product
         prod_res = authenticated_client.post('/api/v1/shop/products/', {
-            "name": "Super Gadget", "slug": "super-gadget", "category_ids": [cat_id], 
+            "name": f"Super Gadget {suffix}", "slug": f"super-gadget-{suffix}", "category_ids": [cat_id], 
             "price": "100.00", "language": "en"
         })
         prod_id = prod_res.data['id']
         
         # Variant with stock
         var_res = authenticated_client.post('/api/v1/shop/variants/', {
-            "product": prod_id, "sku": "GADGET-001", "name": "Standard", "price": "100.00", "stock_quantity": 10
+            "product": prod_id, "sku": f"GADGET-001-{suffix}", "name": "Standard", "price": "100.00", "stock_quantity": 10
         })
         var_id = var_res.data['id']
         
@@ -128,14 +129,14 @@ class TestFullWorkflow:
         # --- Step 5: Fulfillment with Packages ---
         # Create package template via API
         template_res = authenticated_client.post('/api/v1/delivery/package-templates/', {
-            'code': 'STANDARD', 'name': 'Standard Box', 'length': '30.00', 'width': '20.00',
+            'code': f'STANDARD-{suffix}', 'name': f'Standard Box {suffix}', 'length': '30.00', 'width': '20.00',
             'height': '15.00', 'tare_weight': '0.10', 'is_active': True
         })
         assert template_res.status_code == 201
         template_id = template_res.data['id']
 
         status_res = authenticated_client.post('/api/v1/delivery/freight-statuses/', {
-            "code": "draft", "name": "Draft", "type": "consignment",
+            "code": f"draft-{suffix}", "name": f"Draft {suffix}", "type": "consignment",
             "state": "PENDING", "is_active": True
         })
         assert status_res.status_code == 201
@@ -170,16 +171,16 @@ class TestFullWorkflow:
 
         service_id = None
         carrier_res = authenticated_client.post('/api/v1/delivery/carriers/', {
-            "name": "Test Carrier",
-            "code": "TC-001",
+            "name": f"Test Carrier {suffix}",
+            "code": f"TC-001-{suffix}",
             "is_active": True
         })
         if carrier_res.status_code == 201:
             carrier_id = carrier_res.data['id']
             service_res = authenticated_client.post('/api/v1/delivery/freight-services/', {
                 "carrier": carrier_id,
-                "name": "Standard Shipping",
-                "code": "STD",
+                "name": f"Standard Shipping {suffix}",
+                "code": f"STD-{suffix}",
                 "base_price": "10.00",
                 "price_per_kg": "5.00",
                 "is_active": True

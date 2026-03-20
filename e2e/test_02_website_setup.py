@@ -36,6 +36,7 @@ class TestWebsiteSetup:
         payload = {
             "title": "Home Page",
             "slug": "home",
+            "site": site_id,
             "content": "<h1>Welcome</h1>",
             "status": "published",
             "language": "en"

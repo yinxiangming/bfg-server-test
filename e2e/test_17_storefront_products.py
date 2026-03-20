@@ -132,16 +132,17 @@ class TestStorefrontProducts:
     
     def test_product_filtering(self, workspace, admin_client, anonymous_api_client):
         """Test product filtering (featured, is_new, bestseller)"""
+        suf = uuid.uuid4().hex[:6]
         # Setup
         cat_res = admin_client.post('/api/v1/shop/categories/', {
-            "name": "Filter Category", "slug": "filter-category", "language": "en", "is_active": True
+            "name": f"Filter Category {suf}", "slug": f"filter-category-{suf}", "language": "en", "is_active": True
         })
         cat_id = cat_res.data['id']
         
         # Create featured product
         featured_res = admin_client.post('/api/v1/shop/products/', {
-            "name": "Featured Product",
-            "slug": "featured-product",
+            "name": f"Featured Product {suf}",
+            "slug": f"featured-product-{suf}",
             "price": "100.00",
             "category_ids": [cat_id],
             "language": "en",
@@ -152,8 +153,8 @@ class TestStorefrontProducts:
         
         # Create non-featured product
         normal_res = admin_client.post('/api/v1/shop/products/', {
-            "name": "Normal Product",
-            "slug": "normal-product",
+            "name": f"Normal Product {suf}",
+            "slug": f"normal-product-{suf}",
             "price": "50.00",
             "category_ids": [cat_id],
             "language": "en",
@@ -187,15 +188,17 @@ class TestStorefrontProducts:
     
     def test_product_reviews(self, workspace, admin_client, customer_client, anonymous_api_client):
         """Test product reviews API (admin creates product, customer posts review, anonymous reads)"""
+        suf = uuid.uuid4().hex[:6]
         # Admin creates product
         cat_res = admin_client.post('/api/v1/shop/categories/', {
-            "name": "Review Category", "slug": "review-category", "language": "en", "is_active": True
+            "name": f"Review Category {suf}", "slug": f"review-category-{suf}", "language": "en", "is_active": True
         })
         cat_id = cat_res.data['id']
 
+        prod_slug = f"reviewable-product-{suf}"
         prod_res = admin_client.post('/api/v1/shop/products/', {
             "name": "Reviewable Product",
-            "slug": "reviewable-product",
+            "slug": prod_slug,
             "price": "75.00",
             "category_ids": [cat_id],
             "language": "en",
@@ -204,7 +207,7 @@ class TestStorefrontProducts:
         prod_id = prod_res.data['id']
 
         # Customer posts first review
-        create_review_res = customer_client.post('/api/v1/store/products/reviewable-product/reviews/', {
+        create_review_res = customer_client.post(f'/api/v1/store/products/{prod_slug}/reviews/', {
             "rating": 5,
             "title": "Great product!",
             "comment": "Very satisfied with the quality",
@@ -214,7 +217,7 @@ class TestStorefrontProducts:
         assert create_review_res.data['title'] == "Great product!"
 
         # Anonymous reads reviews (backend may show unapproved or only approved)
-        reviews_res = anonymous_api_client.get('/api/v1/store/products/reviewable-product/reviews/')
+        reviews_res = anonymous_api_client.get(f'/api/v1/store/products/{prod_slug}/reviews/')
         assert reviews_res.status_code == 200
         assert isinstance(reviews_res.data, list)
         # Backend may show only approved reviews; if our review is visible, check content
@@ -224,12 +227,12 @@ class TestStorefrontProducts:
             assert 'customer_name' in reviews_res.data[0]
 
         # Filter reviews by rating
-        filtered_reviews = anonymous_api_client.get('/api/v1/store/products/reviewable-product/reviews/?rating=5')
+        filtered_reviews = anonymous_api_client.get(f'/api/v1/store/products/{prod_slug}/reviews/?rating=5')
         assert filtered_reviews.status_code == 200
         assert isinstance(filtered_reviews.data, list)
 
         # Customer cannot create duplicate review
-        duplicate_res = customer_client.post('/api/v1/store/products/reviewable-product/reviews/', {
+        duplicate_res = customer_client.post(f'/api/v1/store/products/{prod_slug}/reviews/', {
             "rating": 4,
             "title": "Duplicate",
             "comment": "Should fail"
@@ -237,13 +240,13 @@ class TestStorefrontProducts:
         assert duplicate_res.status_code == 400
 
         # Product rating and reviews_count updated
-        detail_res = anonymous_api_client.get('/api/v1/store/products/reviewable-product/')
+        detail_res = anonymous_api_client.get(f'/api/v1/store/products/{prod_slug}/')
         assert detail_res.status_code == 200
         assert detail_res.data['reviews_count'] >= 1
         assert 4.0 <= float(detail_res.data['rating']) <= 5.0
 
         # Unauthenticated cannot create review
-        unauth_res = anonymous_api_client.post('/api/v1/store/products/reviewable-product/reviews/', {
+        unauth_res = anonymous_api_client.post(f'/api/v1/store/products/{prod_slug}/reviews/', {
             "rating": 3,
             "title": "Should fail",
             "comment": "Not authenticated"
@@ -252,14 +255,16 @@ class TestStorefrontProducts:
     
     def test_product_variant_options(self, workspace, admin_client, anonymous_api_client):
         """Test product variant options field"""
+        suf = uuid.uuid4().hex[:6]
         cat_res = admin_client.post('/api/v1/shop/categories/', {
-            "name": "Variant Category", "slug": "variant-category", "language": "en", "is_active": True
+            "name": f"Variant Category {suf}", "slug": f"variant-category-{suf}", "language": "en", "is_active": True
         })
         cat_id = cat_res.data['id']
         
+        prod_slug = f"variant-product-{suf}"
         prod_res = admin_client.post('/api/v1/shop/products/', {
             "name": "Variant Product",
-            "slug": "variant-product",
+            "slug": prod_slug,
             "price": "80.00",
             "category_ids": [cat_id],
             "language": "en",
@@ -270,7 +275,7 @@ class TestStorefrontProducts:
         # Create variant with options
         var_res = admin_client.post('/api/v1/shop/variants/', {
             "product": prod_id,
-            "sku": "VAR-001",
+            "sku": f"VAR-001-{suf}",
             "name": "Large Red",
             "price": "80.00",
             "stock_quantity": 20,
@@ -279,7 +284,7 @@ class TestStorefrontProducts:
         var_id = var_res.data['id']
         
         # Test: Variant options in storefront API
-        detail_res = anonymous_api_client.get(f'/api/v1/store/products/variant-product/')
+        detail_res = anonymous_api_client.get(f'/api/v1/store/products/{prod_slug}/')
         assert detail_res.status_code == 200
         
         variants = detail_res.data['variants']

@@ -82,7 +82,7 @@ class TestSupport:
             assert all(ticket.get('status') == 'new' for ticket in results)
     
     def test_ticket_reply(self, authenticated_client, workspace, customer):
-        """Test adding reply to ticket"""
+        """Test adding reply to ticket (via description update; no dedicated /replies/ endpoint yet)"""
         # Create ticket
         create_res = authenticated_client.post('/api/v1/support/tickets/', {
             "subject": "Test Ticket",

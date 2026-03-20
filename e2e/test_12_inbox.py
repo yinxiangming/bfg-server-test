@@ -116,4 +116,5 @@ class TestInbox:
         response = authenticated_client.get('/api/v1/inbox/messages/')
         
         assert response.status_code == 200
-        assert len(response.data) >= 3
+        messages = response.data if isinstance(response.data, list) else response.data.get('results', [])
+        assert len(messages) >= 3

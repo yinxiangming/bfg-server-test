@@ -53,7 +53,7 @@ class TestShoppingFlow:
         assert Decimal(str(add_res.data['total'])) == Decimal("40.00")
         
     def test_checkout_preparation(self, authenticated_client, workspace):
-        """Test checkout preparation (address, shipping)"""
+        """Test checkout preparation (address, shipping, product, full checkout)"""
         suffix = uuid.uuid4().hex[:6]
         # 1. Create Address via API
         addr_res = authenticated_client.post("/api/v1/addresses/", {
@@ -86,20 +86,35 @@ class TestShoppingFlow:
         })
         assert store_res.status_code == 201
         store_id = store_res.data["id"]
-        
-        # 3. Create Cart
-        cart_res = authenticated_client.post('/api/v1/shop/carts/', {})
-        
-        # 4. Test checkout endpoint (requires items in cart, but we can test endpoint exists)
-        # Checkout requires items, so we'll just verify the endpoint is accessible
-        # In a full test, we'd add items first
+
+        # 4. Create category and product so cart is not empty
+        cat_res = authenticated_client.post('/api/v1/shop/categories/', {
+            "name": f"Checkout Cat {suffix}", "slug": f"checkout-cat-{suffix}",
+            "language": "en", "is_active": True
+        })
+        assert cat_res.status_code == 201
+        cat_id = cat_res.data['id']
+
+        prod_res = authenticated_client.post('/api/v1/shop/products/', {
+            "name": f"Checkout Product {suffix}", "slug": f"checkout-product-{suffix}",
+            "price": "50.00", "category_ids": [cat_id], "language": "en",
+            "is_active": True, "track_inventory": False
+        })
+        assert prod_res.status_code == 201
+        prod_id = prod_res.data['id']
+
+        # 5. Create Cart and add item
+        authenticated_client.post('/api/v1/shop/carts/', {})
+        authenticated_client.post('/api/v1/shop/carts/add_item/', {
+            "product": prod_id, "quantity": 1
+        })
+
+        # 6. Checkout with items in cart
         checkout_payload = {
             "store": store_id,
             "shipping_address": address_id,
+            "billing_address": address_id,
         }
         
-        # Checkout should fail without items, but endpoint should be accessible
         checkout_res = authenticated_client.post('/api/v1/shop/carts/checkout/', checkout_payload)
-        
-        # Should return 400 (cart empty) not 405 (method not allowed)
-        assert checkout_res.status_code != 405
+        assert checkout_res.status_code == 201
