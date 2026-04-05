@@ -69,11 +69,11 @@ def platform_slug():
 
 @pytest.fixture(scope="module")
 def admin_token(base_url):
-    # Platform-specific vars take priority to avoid collision with project-root .env
-    email = os.environ.get("BFG2_E2E_PLATFORM_EMAIL") or os.environ.get("BFG2_E2E_SUPERUSER_EMAIL")
-    password = os.environ.get("BFG2_E2E_PLATFORM_PASSWORD") or os.environ.get("BFG2_E2E_SUPERUSER_PASSWORD")
+    # Embedded mode: platform runs inside the workspace server, so use the workspace superuser
+    email = os.environ.get("BFG2_E2E_SUPERUSER_EMAIL")
+    password = os.environ.get("BFG2_E2E_SUPERUSER_PASSWORD")
     if not email or not password:
-        pytest.skip("BFG2_E2E_PLATFORM_EMAIL/PASSWORD required for platform embedded e2e")
+        pytest.skip("BFG2_E2E_SUPERUSER_EMAIL/PASSWORD required for platform embedded e2e")
     return _login(base_url, email, password)
 
 
