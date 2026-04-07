@@ -86,13 +86,20 @@ def _get_token(base, identifier, password):
         seen.add(key)
         bodies.append(body)
     last = None
+    last_error = None
     for body in bodies:
-        last = requests.post(url, json=body, timeout=10)
+        try:
+            last = requests.post(url, json=body, timeout=10)
+        except Exception as exc:
+            last_error = exc
+            continue
         if last.status_code == 200:
             token = last.json().get("access")
             if token:
                 return {"token": token, "user_id": _decode_user_id_from_token(token)}
     snippet = getattr(last, "text", "")[:300] if last else ""
+    if last is None and last_error is not None:
+        raise AssertionError(f"Could not get token for {identifier}: request failed: {last_error}")
     raise AssertionError(f"Could not get token for {identifier}: {last.status_code if last else '?'} {snippet}")
 
 
@@ -128,7 +135,7 @@ def _create_workspace(base, token, name, slug):
     r = requests.post(
         f"{base}/api/v1/workspaces/",
         headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
-        json={"name": name, "slug": slug, "domain": "test.com", "email": "e2e@test.com"},
+        json={"name": name, "slug": slug, "email": "e2e@test.com"},
         timeout=10,
     )
     if r.status_code == 201:

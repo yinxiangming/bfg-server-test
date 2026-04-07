@@ -136,12 +136,13 @@ class TestStandaloneWorkspaceList:
         assert r.data["is_platform_admin"] is True
 
     def test_workspace_includes_cluster_info(self, platform_client):
-        """Standalone workspaces should include region and cluster fields."""
+        """Standalone workspaces should include region, cluster, and domain fields."""
         r = platform_client.get("/api/v1/platform/workspaces/me/")
         for ws in r.data["workspaces"]:
             # In standalone mode these fields should exist (even if null)
             assert "region" in ws
             assert "cluster" in ws
+            assert "domain" in ws
 
 
 # ---------------------------------------------------------------------------
@@ -153,7 +154,7 @@ class TestStandaloneTokenExchange:
     """Token exchange calls Workspace Server over HTTP."""
 
     def test_token_exchange(self, platform_client, workspace_base):
-        """POST /platform/auth/token-exchange/ should return workspace JWT."""
+        """POST /platform/auth/token-exchange/ should return workspace JWT + frontend URL field."""
         # Get first workspace from list
         r = platform_client.get("/api/v1/platform/workspaces/me/")
         workspaces = r.data.get("workspaces", [])
@@ -171,6 +172,7 @@ class TestStandaloneTokenExchange:
         assert r.data.get("workspace_token") is not None
         assert r.data.get("embedded") is False
         assert r.data.get("workspace_url") is not None
+        assert "workspace_frontend_url" in r.data
 
     def test_workspace_jwt_works_on_workspace_server(self, platform_client, workspace_base):
         """Workspace JWT from token exchange should authenticate on workspace server."""

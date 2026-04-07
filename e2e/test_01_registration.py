@@ -15,7 +15,6 @@ class TestRegistration:
         payload = {
             "name": "Second Workspace",
             "slug": f"second-workspace-{suffix}",
-            "domain": "test2.com",
             "email": "e2e@test.com",
         }
         response = api_client.post("/api/v1/workspaces/", payload)
