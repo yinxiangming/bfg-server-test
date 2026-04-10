@@ -97,10 +97,12 @@ def _get_token(base, identifier, password):
             token = last.json().get("access")
             if token:
                 return {"token": token, "user_id": _decode_user_id_from_token(token)}
-    snippet = getattr(last, "text", "")[:300] if last else ""
+    # requests.Response is falsy for non-2xx; use explicit None checks.
+    snippet = getattr(last, "text", "")[:300] if last is not None else ""
     if last is None and last_error is not None:
         raise AssertionError(f"Could not get token for {identifier}: request failed: {last_error}")
-    raise AssertionError(f"Could not get token for {identifier}: {last.status_code if last else '?'} {snippet}")
+    status = last.status_code if last is not None else "?"
+    raise AssertionError(f"Could not get token for {identifier}: {status} {snippet}")
 
 
 def _login_only(base, identifier, password):
