@@ -1,5 +1,5 @@
 """
-HTTP client for e2e (remote Node or Django API). Base URL from env only.
+HTTP client for API integration tests (remote Node or Django API). Base URL from env only.
 Mimics DRF test client: .get, .post, .data, .status_code, force_authenticate.
 """
 import json
@@ -10,10 +10,10 @@ import requests
 
 
 def get_base_url(require=False):
-    """Return API base URL from BASE_URL. If require=True, assert it is set (e2e)."""
+    """Return API base URL from BASE_URL. If require=True, assert it is set for integration tests."""
     base = os.environ.get("BASE_URL") or ""
     if require:
-        assert base.strip(), "BASE_URL must be set for e2e tests"
+        assert base.strip(), "BASE_URL must be set for API integration tests"
     return base.rstrip("/") if base else ""
 
 
@@ -35,7 +35,7 @@ class RemoteAPIClient:
 
     def _normalize_path(self, path: str) -> str:
         """
-        Normalize e2e test paths to match the live server routing.
+        Normalize API integration test paths to match the live server routing.
 
         The local tests URLConf mounts modules under prefixes like:
           /api/v1/shop/, /api/v1/delivery/, /api/v1/finance/, /api/v1/marketing/

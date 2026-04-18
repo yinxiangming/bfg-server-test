@@ -1,16 +1,16 @@
 """
-Pytest fixtures for BFG2 e2e tests. Pure API mode only: BASE_URL must be set.
+Pytest fixtures for BFG2 HTTP API integration tests. Pure API mode only: BASE_URL must be set.
 All data is created via HTTP API; no ORM in fixtures.
-E2E tests do not use @pytest.mark.django_db: they never touch the pytest-process test DB, only the live API.
+These tests do not use @pytest.mark.django_db: they never touch the pytest-process test DB, only the live API.
 
-Run: BASE_URL=http://localhost:3100 pytest bfg2/tests/e2e -m e2e
+Run: BASE_URL=http://localhost:8000 pytest api/ -m api_integration
 
 When BFG2_E2E_SUPERUSER_* are set and BASE_URL is :8000 or a local host, that
 pre-seeded bootstrap user creates both workspaces (if the API allows).
 
 Optional register-mode identities (when not using superuser bootstrap), e.g. another
 backend already has the default emails: BFG2_E2E_CUSTOMER_EMAIL,
-BFG2_E2E_CUSTOMER2_EMAIL, BFG2_E2E_ADMIN2_EMAIL (defaults: customer_e2e@test.com, …).
+BFG2_E2E_CUSTOMER2_EMAIL, BFG2_E2E_ADMIN2_EMAIL (defaults: customer_apitest@test.com, …).
 
 Roles:
 - bootstrap / workspace admin: creates workspaces
@@ -110,7 +110,7 @@ def _login_only(base, identifier, password):
     return _get_token(base, identifier, password)
 
 
-def _register_and_login(base, email, password, first_name="E2E", last_name="User"):
+def _register_and_login(base, email, password, first_name="API", last_name="Integration"):
     """Register user (or login if exists). Returns {token, user_id}."""
     for url in [f"{base}/api/v1/auth/register/", f"{base}/api/v1/auth/register"]:
         r = requests.post(
@@ -137,7 +137,7 @@ def _create_workspace(base, token, name, slug):
     r = requests.post(
         f"{base}/api/v1/workspaces/",
         headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
-        json={"name": name, "slug": slug, "email": "e2e@test.com"},
+        json={"name": name, "slug": slug, "email": "apitest@example.com"},
         timeout=10,
     )
     if r.status_code == 201:
@@ -203,9 +203,9 @@ def _require_bootstrap_superuser_env(base):
     if os.environ.get("BFG2_E2E_SUPERUSER_EMAIL") and os.environ.get("BFG2_E2E_SUPERUSER_PASSWORD"):
         return
     pytest.fail(
-        "E2E with BASE_URL ending in :8000 requires a pre-seeded bootstrap user. "
+        "API integration tests with BASE_URL ending in :8000 require a pre-seeded bootstrap user. "
         "Set BFG2_E2E_SUPERUSER_EMAIL and BFG2_E2E_SUPERUSER_PASSWORD "
-        "(see bfg2/docs/e2e.md)."
+        "(see your BFG2 server documentation for bootstrap setup)."
     )
 
 
@@ -221,11 +221,13 @@ def _session():
     admin_email = os.environ.get("BFG2_E2E_ADMIN_EMAIL") or "admin@test.com"
     admin_password = os.environ.get("BFG2_E2E_ADMIN_PASSWORD")
     customer_password = os.environ.get("BFG2_E2E_CUSTOMER_PASSWORD")
-    customer_email = os.environ.get("BFG2_E2E_CUSTOMER_EMAIL") or "customer_e2e@test.com"
-    customer2_email = os.environ.get("BFG2_E2E_CUSTOMER2_EMAIL") or "customer2_e2e@test.com"
-    admin2_email = os.environ.get("BFG2_E2E_ADMIN2_EMAIL") or "admin2_e2e@test.com"
+    customer_email = os.environ.get("BFG2_E2E_CUSTOMER_EMAIL") or "customer_apitest@test.com"
+    customer2_email = os.environ.get("BFG2_E2E_CUSTOMER2_EMAIL") or "customer2_apitest@test.com"
+    admin2_email = os.environ.get("BFG2_E2E_ADMIN2_EMAIL") or "admin2_apitest@test.com"
     if not customer_password:
-        pytest.fail("BFG2_E2E_CUSTOMER_PASSWORD must be set in env for e2e (customer accounts)")
+        pytest.fail(
+            "BFG2_E2E_CUSTOMER_PASSWORD must be set in env for API integration tests (customer accounts)"
+        )
     use_superuser = _use_bootstrap_superuser(base)
     if use_superuser:
         superuser_email = os.environ.get("BFG2_E2E_SUPERUSER_EMAIL")
@@ -238,13 +240,13 @@ def _session():
     if use_superuser:
         u1 = _login_only(base, superuser_email, superuser_password)
     else:
-        u1 = _register_and_login(base, admin_email, admin_password, "Admin", "E2E")
+        u1 = _register_and_login(base, admin_email, admin_password, "Admin", "Integration")
     ws1_slug = f"test-workspace-{uuid.uuid4().hex[:6]}"
     ws1 = _create_workspace(base, u1["token"], "Test Workspace", ws1_slug)
     cust1 = _create_customer_in_workspace(base, u1["token"], ws1["id"], u1["user_id"])
 
     # ws1 customer
-    u2 = _register_and_login(base, customer_email, customer_password, "Customer", "E2E")
+    u2 = _register_and_login(base, customer_email, customer_password, "Customer", "Integration")
 
     # ws2 admin (same superuser when use_superuser, else separate admin2)
     if use_superuser:
@@ -253,13 +255,13 @@ def _session():
         ws2 = _create_workspace(base, u1["token"], "Test Workspace 2", ws2_slug)
         cust2 = _create_customer_in_workspace(base, u1["token"], ws2["id"], u1["user_id"])
     else:
-        u3 = _register_and_login(base, admin2_email, admin_password, "Admin2", "E2E")
+        u3 = _register_and_login(base, admin2_email, admin_password, "Admin2", "Integration")
         ws2_slug = f"test-workspace-2-{uuid.uuid4().hex[:6]}"
         ws2 = _create_workspace(base, u3["token"], "Test Workspace 2", ws2_slug)
         cust2 = _create_customer_in_workspace(base, u3["token"], ws2["id"], u3["user_id"])
 
     # ws2 customer
-    u4 = _register_and_login(base, customer2_email, customer_password, "Customer2", "E2E")
+    u4 = _register_and_login(base, customer2_email, customer_password, "Customer2", "Integration")
 
     return {
         "superadmin_token": u1["token"],
@@ -509,7 +511,7 @@ def other_user_client(workspace, _session):
     base = _get_base_url()
     customer_password = os.environ.get("BFG2_E2E_CUSTOMER_PASSWORD")
     if not customer_password:
-        pytest.fail("BFG2_E2E_CUSTOMER_PASSWORD must be set in env for e2e")
-    email = f"e2e-other-{uuid.uuid4().hex[:8]}@test.com"
+        pytest.fail("BFG2_E2E_CUSTOMER_PASSWORD must be set in env for API integration tests")
+    email = f"apitest-other-{uuid.uuid4().hex[:8]}@test.com"
     u = _register_and_login(base, email, customer_password, "Other", "User")
     return RemoteAPIClient(workspace=workspace, token=u["token"])
