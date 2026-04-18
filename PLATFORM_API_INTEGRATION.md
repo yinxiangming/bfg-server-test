@@ -1,5 +1,7 @@
 # Platform Extension — API Integration Tests
 
+Core BFG workspace HTTP tests live under `api/bfg_workspace/`. This document covers **platform** tests only.
+
 The Platform extension can run in two modes. Each has its own test directory and setup:
 
 | Mode | Directory | Server config |

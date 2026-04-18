@@ -9,7 +9,7 @@ HTTP API integration tests against a live BFG2 server. No Django ORM — every t
 ```bash
 pip install -r requirements.txt
 cp .env.example .env      # fill in your credentials
-BASE_URL=http://localhost:8000 pytest api/ -m api_integration -v
+BASE_URL=http://localhost:8000 pytest api/bfg_workspace/ -m api_integration -v
 ```
 
 ## Directory Layout
@@ -23,9 +23,10 @@ bfg-server-test/
 ├── pytest.ini
 ├── requirements.txt
 └── api/
-    ├── test_01_registration.py
-    ├── test_02_website_setup.py
-    ├── ...                  # core workspace tests (01–18)
+    ├── bfg_workspace/       # Core BFG workspace API tests (test_01 … test_18, storefront, etc.)
+    │   ├── test_01_registration.py
+    │   ├── test_02_website_setup.py
+    │   └── ...
     └── bfg_platform/        # Platform extension tests
         ├── embedded/        # Embedded mode (platform runs inside workspace server)
         │   ├── conftest.py
@@ -51,7 +52,7 @@ See `.env.example` for the full list.
 
 ### Core workspace tests
 ```bash
-BASE_URL=http://localhost:8000 pytest api/ -m api_integration -v --ignore=api/bfg_platform
+BASE_URL=http://localhost:8000 pytest api/bfg_workspace/ -m api_integration -v
 ```
 
 ### Platform tests (both modes)
@@ -63,7 +64,7 @@ BASE_URL=http://localhost:8000 pytest api/bfg_platform/embedded/ -m api_integrat
 BASE_URL=http://localhost:8011 pytest api/bfg_platform/standalone/ -m api_integration -v
 ```
 
-### Everything
+### Everything (workspace + platform)
 ```bash
 pytest api/ -m api_integration -v
 ```

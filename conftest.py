@@ -3,7 +3,8 @@ Pytest fixtures for BFG2 HTTP API integration tests. Pure API mode only: BASE_UR
 All data is created via HTTP API; no ORM in fixtures.
 These tests do not use @pytest.mark.django_db: they never touch the pytest-process test DB, only the live API.
 
-Run: BASE_URL=http://localhost:8000 pytest api/ -m api_integration
+Run: BASE_URL=http://localhost:8000 pytest api/bfg_workspace/ -m api_integration
+Full tree (workspace + platform): pytest api/ -m api_integration
 
 When BFG2_E2E_SUPERUSER_* are set and BASE_URL is :8000 or a local host, that
 pre-seeded bootstrap user creates both workspaces (if the API allows).
