@@ -113,22 +113,21 @@ def _login_only(base, identifier, password):
 
 def _register_and_login(base, email, password, first_name="API", last_name="Integration"):
     """Register user (or login if exists). Returns {token, user_id}."""
-    for url in [f"{base}/api/v1/auth/register/", f"{base}/api/v1/auth/register"]:
-        r = requests.post(
-            url,
-            json={
-                "email": email,
-                "password": password,
-                "password_confirm": password,
-                "first_name": first_name,
-                "last_name": last_name,
-            },
-            timeout=10,
-        )
-        if r.status_code in (200, 201):
-            token = r.json().get("access")
-            if token:
-                return {"token": token, "user_id": _decode_user_id_from_token(token)}
+    r = requests.post(
+        f"{base}/api/v1/auth/register/",
+        json={
+            "email": email,
+            "password": password,
+            "password_confirm": password,
+            "first_name": first_name,
+            "last_name": last_name,
+        },
+        timeout=10,
+    )
+    if r.status_code in (200, 201):
+        token = r.json().get("access")
+        if token:
+            return {"token": token, "user_id": _decode_user_id_from_token(token)}
     # Fallback: get token via token endpoint (same as login)
     return _get_token(base, email, password)
 
