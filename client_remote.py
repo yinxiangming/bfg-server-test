@@ -1,5 +1,5 @@
 """
-HTTP client for e2e (remote Node or Django API). Base URL from env only.
+HTTP client for API integration tests (remote Node or Django API). Base URL from env only.
 Mimics DRF test client: .get, .post, .data, .status_code, force_authenticate.
 """
 import json
@@ -10,10 +10,10 @@ import requests
 
 
 def get_base_url(require=False):
-    """Return API base URL from BASE_URL. If require=True, assert it is set (e2e)."""
+    """Return API base URL from BASE_URL. If require=True, assert it is set for integration tests."""
     base = os.environ.get("BASE_URL") or ""
     if require:
-        assert base.strip(), "BASE_URL must be set for e2e tests"
+        assert base.strip(), "BASE_URL must be set for API integration tests"
     return base.rstrip("/") if base else ""
 
 
@@ -29,20 +29,17 @@ class RemoteAPIClient:
         self._http = requests.Session()
         # .NET storefront isolates carts by session header when unauthenticated
         self._storefront_cart_session = uuid.uuid4().hex if token is None else None
-        # Python server mounts module routes under /api/v1/ root.
-        # Node server keeps /api/v1/shop, /api/v1/delivery prefixes.
-        self._should_normalize = self.base_url.endswith(":8000")
+        # Keep grouped module routes intact so tests hit the same URLs as the Django server.
+        self._should_normalize = False
 
     def _normalize_path(self, path: str) -> str:
         """
-        Normalize e2e test paths to match the live server routing.
+        Normalize API integration test paths to match the live server routing.
 
-        The local tests URLConf mounts modules under prefixes like:
+        The live server now mounts modules under grouped prefixes like:
           /api/v1/shop/, /api/v1/delivery/, /api/v1/finance/, /api/v1/marketing/
 
-        But the real server mounts them at /api/v1/ root, so we rewrite:
-          /api/v1/shop/X  -> /api/v1/X
-          /api/v1/delivery/X -> /api/v1/X
+        Keep paths unchanged so the tests exercise the real grouped routes directly.
         """
         if not self._should_normalize:
             if not path.startswith("/"):

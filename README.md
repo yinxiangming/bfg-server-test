@@ -1,29 +1,32 @@
-# BFG2 HTTP E2E Test Suite
+# BFG2 HTTP API Integration Test Suite
 
-HTTP-only end-to-end tests against a live BFG2 server. No Django ORM — every test uses the real HTTP API.
+HTTP API integration tests against a live BFG2 server. No Django ORM — every test uses the real HTTP API.
+
+> Credentials use the `BFG2_E2E_*` environment variable prefix for historical compatibility with existing setups.
 
 ## Quick Start
 
 ```bash
 pip install -r requirements.txt
 cp .env.example .env      # fill in your credentials
-BASE_URL=http://localhost:8000 pytest e2e/ -m e2e -v
+BASE_URL=http://localhost:8000 pytest api/bfg_workspace/ -m api_integration -v
 ```
 
 ## Directory Layout
 
 ```
-bfg-server-test-e2e/
+bfg-server-test/
 ├── conftest.py              # global fixtures (session bootstrap, workspace creation)
 ├── client_remote.py         # RemoteAPIClient (mimics DRF test client over HTTP)
 ├── .env                     # local credentials (git-ignored)
 ├── .env.example             # template
 ├── pytest.ini
 ├── requirements.txt
-└── e2e/
-    ├── test_01_registration.py
-    ├── test_02_website_setup.py
-    ├── ...                  # core workspace tests (01–18)
+└── api/
+    ├── bfg_workspace/       # Core BFG workspace API tests (test_01 … test_18, storefront, etc.)
+    │   ├── test_01_registration.py
+    │   ├── test_02_website_setup.py
+    │   └── ...
     └── bfg_platform/        # Platform extension tests
         ├── embedded/        # Embedded mode (platform runs inside workspace server)
         │   ├── conftest.py
@@ -49,23 +52,23 @@ See `.env.example` for the full list.
 
 ### Core workspace tests
 ```bash
-BASE_URL=http://localhost:8000 pytest e2e/ -m e2e -v --ignore=e2e/bfg_platform
+BASE_URL=http://localhost:8000 pytest api/bfg_workspace/ -m api_integration -v
 ```
 
 ### Platform tests (both modes)
 ```bash
 # Embedded mode
-BASE_URL=http://localhost:8000 pytest e2e/bfg_platform/embedded/ -m e2e -v
+BASE_URL=http://localhost:8000 pytest api/bfg_platform/embedded/ -m api_integration -v
 
 # Standalone mode
-BASE_URL=http://localhost:8011 pytest e2e/bfg_platform/standalone/ -m e2e -v
+BASE_URL=http://localhost:8011 pytest api/bfg_platform/standalone/ -m api_integration -v
 ```
 
-### Everything
+### Everything (workspace + platform)
 ```bash
-pytest e2e/ -m e2e -v
+pytest api/ -m api_integration -v
 ```
 
-## Platform E2E
+## Platform API integration
 
-See **[PLATFORM_E2E.md](PLATFORM_E2E.md)** for full setup instructions for both platform modes.
+See **[PLATFORM_API_INTEGRATION.md](PLATFORM_API_INTEGRATION.md)** for full setup instructions for both platform modes.
