@@ -29,7 +29,7 @@ class TestFulfillment:
         })
         cat_id = cat_res.data['id']
         
-        prod_res = authenticated_client.post('/api/v1/shop/products/', {
+        prod_res = authenticated_client.post('/api/v1/shop/admin/products/', {
             "name": f"Test Product {suffix}", "slug": f"test-product-{suffix}", "price": "100.00",
             "category_ids": [cat_id], "language": "en", "is_active": True,
             "track_inventory": False
@@ -140,7 +140,7 @@ class TestFulfillment:
         })
         cat_id = cat_res.data['id']
         
-        prod_res = authenticated_client.post('/api/v1/shop/products/', {
+        prod_res = authenticated_client.post('/api/v1/shop/admin/products/', {
             "name": f"Test Product {suffix}", "slug": f"test-product-{suffix}", "price": "100.00",
             "category_ids": [cat_id], "language": "en", "is_active": True,
             "track_inventory": False
@@ -321,7 +321,7 @@ class TestFulfillment:
         })
         cat_id = cat_res.data['id']
         
-        prod_res = authenticated_client.post('/api/v1/shop/products/', {
+        prod_res = authenticated_client.post('/api/v1/shop/admin/products/', {
             "name": f"Test Product {suffix}", "slug": f"test-product-{suffix}", "price": "100.00",
             "category_ids": [cat_id], "language": "en", "is_active": True,
             "track_inventory": False

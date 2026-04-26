@@ -37,7 +37,7 @@ class TestFullWorkflow:
         cat_id = cat_res.data['id']
         
         # Product
-        prod_res = authenticated_client.post('/api/v1/shop/products/', {
+        prod_res = authenticated_client.post('/api/v1/shop/admin/products/', {
             "name": f"Super Gadget {suffix}", "slug": f"super-gadget-{suffix}", "category_ids": [cat_id], 
             "price": "100.00", "language": "en"
         })

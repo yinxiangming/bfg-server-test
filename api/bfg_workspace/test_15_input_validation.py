@@ -26,7 +26,7 @@ class TestInputValidation:
             "name": "Test Category", "slug": f"test-category-{suf}", "language": "en", "is_active": True
         })
         assert cat.status_code == 201, cat.data
-        prod = authenticated_client.post('/api/v1/shop/products/', {
+        prod = authenticated_client.post('/api/v1/shop/admin/products/', {
             "name": "Test Product", "slug": f"test-product-{suf}", "sku": f"TEST001-{suf}",
             "price": "100.00", "category_ids": [cat.data['id']], "language": "en", "is_active": True,
             "track_inventory": False,
@@ -95,7 +95,7 @@ class TestInputValidation:
     def test_05_negative_price_in_product(self, authenticated_client, workspace, setup_products):
         """Test that negative price is rejected when creating product"""
         category = setup_products['category']
-        response = authenticated_client.post('/api/v1/shop/products/', {
+        response = authenticated_client.post('/api/v1/shop/admin/products/', {
             'name': 'Test Product Neg', 'slug': 'test-product-neg', 'sku': 'TEST-NEG',
             'price': '-10.00', 'category_ids': [category.id], 'is_active': True
         })
@@ -106,7 +106,7 @@ class TestInputValidation:
     def test_06_excessive_price_in_product(self, authenticated_client, workspace, setup_products):
         """Test that excessive price (>999999.99) is rejected"""
         category = setup_products['category']
-        response = authenticated_client.post('/api/v1/shop/products/', {
+        response = authenticated_client.post('/api/v1/shop/admin/products/', {
             'name': 'Test Product Exp', 'slug': 'test-product-exp', 'sku': 'TEST-EXP',
             'price': '1000000.00', 'category_ids': [category.id], 'is_active': True
         })

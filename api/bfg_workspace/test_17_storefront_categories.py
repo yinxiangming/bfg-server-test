@@ -58,7 +58,7 @@ class TestStorefrontCategories:
         
         # Create products in category
         for i in range(3):
-            prod_res = admin_client.post('/api/v1/shop/products/', {
+            prod_res = admin_client.post('/api/v1/shop/admin/products/', {
                 "name": f"Product {i}",
                 "slug": f"product-{i}-{suf}",
                 "price": f"{10 + i}.00",

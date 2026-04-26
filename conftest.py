@@ -176,6 +176,116 @@ def _create_customer_in_workspace(base, token, workspace_id, user_id):
     raise AssertionError(f"Could not create customer in workspace {workspace_id}: {r.text}")
 
 
+def _add_user_as_staff(base, admin_token, workspace_id, user_id, role_code="admin"):
+    """Add an existing user as StaffMember of a workspace.
+
+    Looks up the role by code in the target workspace and POSTs to
+    /api/v1/staff-members/. Caller's ``admin_token`` must belong to a
+    user with admin / superuser-bypass access in that workspace.
+    """
+    role_resp = requests.get(
+        f"{base}/api/v1/staff-roles/",
+        headers={
+            "Authorization": f"Bearer {admin_token}",
+            "X-Workspace-Id": str(workspace_id),
+            "Content-Type": "application/json",
+        },
+        timeout=10,
+    )
+    if role_resp.status_code != 200:
+        raise AssertionError(f"Could not list staff-roles for workspace {workspace_id}: "
+                             f"{role_resp.status_code} {role_resp.text[:200]}")
+    body = role_resp.json()
+    roles = body.get("results", body) if isinstance(body, dict) else body
+    role_id = next((r["id"] for r in roles if r.get("code") == role_code), None)
+    if role_id is None:
+        raise AssertionError(f"No staff role with code={role_code!r} in workspace {workspace_id}; "
+                             f"available={[r.get('code') for r in roles]}")
+    r = requests.post(
+        f"{base}/api/v1/staff-members/",
+        headers={
+            "Authorization": f"Bearer {admin_token}",
+            "X-Workspace-Id": str(workspace_id),
+            "Content-Type": "application/json",
+        },
+        json={"user_id": user_id, "role_id": role_id},
+        timeout=10,
+    )
+    if r.status_code in (200, 201):
+        return r.json()
+    if r.status_code == 400 and "already" in r.text.lower():
+        return None  # already a member, treat as success
+    raise AssertionError(f"Could not add user {user_id} as staff of workspace {workspace_id}: "
+                         f"{r.status_code} {r.text[:200]}")
+
+
+def _activate_user(base, admin_token, workspace_id, user_id):
+    """Best-effort: force ``is_active=True`` on a freshly-registered user.
+
+    Workspace servers with ``EMAIL_VERIFICATION_REQUIRED=true`` deactivate
+    new accounts at register time pending email confirmation. Tests have
+    no mailbox, so we ask the admin UserViewSet to flip the flag back on.
+    UserViewSet only sees users who are members of the workspace, so this
+    only succeeds when ``user_id`` already has a StaffMember (or
+    default_workspace) — for customer-only users it will 404 silently.
+    Set ``EMAIL_VERIFICATION_REQUIRED=false`` server-side to skip this
+    dance entirely.
+    """
+    try:
+        r = requests.patch(
+            f"{base}/api/v1/users/{user_id}/",
+            headers={
+                "Authorization": f"Bearer {admin_token}",
+                "X-Workspace-Id": str(workspace_id),
+                "Content-Type": "application/json",
+            },
+            json={"is_active": True},
+            timeout=10,
+        )
+    except Exception:
+        return
+    # 200/202 = activated, 404 = not visible (customer-only user, OK to skip).
+    if r.status_code not in (200, 202, 404):
+        # Surface unexpected errors loudly so they don't masquerade as
+        # downstream "user inactive" failures.
+        raise AssertionError(f"Could not activate user {user_id} in workspace {workspace_id}: "
+                             f"{r.status_code} {r.text[:200]}")
+
+
+def _ensure_workspace_admin(base, bootstrap_token, workspace_id, email, password,
+                            first_name, last_name):
+    """
+    Make sure ``email`` exists, is an admin StaffMember of ``workspace_id``,
+    and return a JWT for them.
+
+    The token returned is the register-time access token. At register
+    time, the user has no memberships yet so
+    ``CustomTokenObtainPairSerializer._resolve_workspace_id`` returns
+    ``None`` — the JWT therefore carries no ``workspace_id`` claim and
+    ``WorkspaceMiddleware`` falls back to the ``X-Workspace-Id`` request
+    header for tenant resolution. That's exactly what each per-workspace
+    admin client needs.
+
+    We deliberately skip a re-login because workspace servers with
+    ``EMAIL_VERIFICATION_REQUIRED=true`` flip the user inactive after
+    register, and ``/auth/token/`` rejects inactive accounts. The
+    register-time token still authenticates because simplejwt does not
+    re-check ``is_active`` on each request.
+    """
+    user = _register_and_login(base, email, password, first_name, last_name)
+    _add_user_as_staff(base, bootstrap_token, workspace_id, user["user_id"], role_code="admin")
+    _activate_user(base, bootstrap_token, workspace_id, user["user_id"])
+    # Re-login now that the user is active again so the JWT picks up the
+    # new StaffMember (claim resolves to ``workspace_id``) — but if login
+    # fails (e.g. simplejwt rejects re-issued claims), fall back to the
+    # register-time token, which is still valid now that the user is active.
+    try:
+        fresh = _get_token(base, email, password)
+        return {"token": fresh["token"], "user_id": user["user_id"]}
+    except AssertionError:
+        return {"token": user["token"], "user_id": user["user_id"]}
+
+
 def _is_local_api_host(base: str) -> bool:
     try:
         u = urllib.parse.urlparse(base)
@@ -236,35 +346,53 @@ def _session():
         if not admin_password:
             pytest.fail("BFG2_E2E_ADMIN_PASSWORD must be set in env when not using superuser")
 
-    # Superadmin / ws1 admin
+    # ── Bootstrap user creates the test workspaces ──────────────────────
+    # In superuser mode this is a privileged account that can create
+    # workspaces freely. In non-superuser mode we re-use the legacy admin
+    # account; tests where create-workspace is gated to superusers will
+    # surface as bootstrap errors there.
     if use_superuser:
-        u1 = _login_only(base, superuser_email, superuser_password)
+        bootstrap = _login_only(base, superuser_email, superuser_password)
     else:
-        u1 = _register_and_login(base, admin_email, admin_password, "Admin", "Integration")
+        bootstrap = _register_and_login(base, admin_email, admin_password, "Admin", "Integration")
+    bootstrap_token = bootstrap["token"]
+
+    # ── ws1: workspace + per-workspace admin/customer with their own JWTs ──
     ws1_slug = f"test-workspace-{uuid.uuid4().hex[:6]}"
-    ws1 = _create_workspace(base, u1["token"], "Test Workspace", ws1_slug)
-    cust1 = _create_customer_in_workspace(base, u1["token"], ws1["id"], u1["user_id"])
+    ws1 = _create_workspace(base, bootstrap_token, "Test Workspace", ws1_slug)
 
-    # ws1 customer
-    u2 = _register_and_login(base, customer_email, customer_password, "Customer", "Integration")
+    # Per-workspace admin user — unique email so each test session gets a
+    # fresh StaffMember row whose JWT claim resolves to ws1 only.
+    ws1_admin_email = f"admin1_{uuid.uuid4().hex[:8]}@apitest.test"
+    ws1_admin_password = customer_password  # any valid password — reuse for simplicity
+    u1 = _ensure_workspace_admin(
+        base, bootstrap_token, ws1["id"],
+        ws1_admin_email, ws1_admin_password, "Admin1", "Integration",
+    )
 
-    # ws2 admin (same superuser when use_superuser, else separate admin2)
-    if use_superuser:
-        u3 = u1
-        ws2_slug = f"test-workspace-2-{uuid.uuid4().hex[:6]}"
-        ws2 = _create_workspace(base, u1["token"], "Test Workspace 2", ws2_slug)
-        cust2 = _create_customer_in_workspace(base, u1["token"], ws2["id"], u1["user_id"])
-    else:
-        u3 = _register_and_login(base, admin2_email, admin_password, "Admin2", "Integration")
-        ws2_slug = f"test-workspace-2-{uuid.uuid4().hex[:6]}"
-        ws2 = _create_workspace(base, u3["token"], "Test Workspace 2", ws2_slug)
-        cust2 = _create_customer_in_workspace(base, u3["token"], ws2["id"], u3["user_id"])
+    # Per-workspace customer (separate user from admin so isolation tests
+    # can verify ws1.customer.id != ws2.customer.id).
+    ws1_customer_email = f"customer1_{uuid.uuid4().hex[:8]}@apitest.test"
+    u2 = _register_and_login(base, ws1_customer_email, customer_password, "Customer1", "Integration")
+    _activate_user(base, bootstrap_token, ws1["id"], u2["user_id"])
+    cust1 = _create_customer_in_workspace(base, u1["token"], ws1["id"], u2["user_id"])
 
-    # ws2 customer
-    u4 = _register_and_login(base, customer2_email, customer_password, "Customer2", "Integration")
+    # ── ws2: same pattern with its own admin + customer ────────────────
+    ws2_slug = f"test-workspace-2-{uuid.uuid4().hex[:6]}"
+    ws2 = _create_workspace(base, bootstrap_token, "Test Workspace 2", ws2_slug)
+
+    ws2_admin_email = f"admin2_{uuid.uuid4().hex[:8]}@apitest.test"
+    u3 = _ensure_workspace_admin(
+        base, bootstrap_token, ws2["id"],
+        ws2_admin_email, ws1_admin_password, "Admin2", "Integration",
+    )
+    ws2_customer_email = f"customer2_{uuid.uuid4().hex[:8]}@apitest.test"
+    u4 = _register_and_login(base, ws2_customer_email, customer_password, "Customer2", "Integration")
+    _activate_user(base, bootstrap_token, ws2["id"], u4["user_id"])
+    cust2 = _create_customer_in_workspace(base, u3["token"], ws2["id"], u4["user_id"])
 
     return {
-        "superadmin_token": u1["token"],
+        "superadmin_token": bootstrap_token,
         "ws1": {
             "workspace": ws1,
             "admin_token": u1["token"],

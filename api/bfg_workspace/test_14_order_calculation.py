@@ -135,19 +135,19 @@ class TestOrderCalculation:
         })
         assert cat_c.status_code == 201, cat_c.data
 
-        prod_a = client.post('/api/v1/shop/products/', {
+        prod_a = client.post('/api/v1/shop/admin/products/', {
             "name": "Product A - Electronics", "slug": f"product-a-{suf}", "price": "100.00",
             "category_ids": [cat_e.data['id']], "language": "en", "is_active": True,
             "track_inventory": False, "stock_quantity": 100
         })
         assert prod_a.status_code == 201, prod_a.data
-        prod_b = client.post('/api/v1/shop/products/', {
+        prod_b = client.post('/api/v1/shop/admin/products/', {
             "name": "Product B - Electronics", "slug": f"product-b-{suf}", "price": "50.00",
             "category_ids": [cat_e.data['id']], "language": "en", "is_active": True,
             "track_inventory": False, "stock_quantity": 100
         })
         assert prod_b.status_code == 201, prod_b.data
-        prod_c = client.post('/api/v1/shop/products/', {
+        prod_c = client.post('/api/v1/shop/admin/products/', {
             "name": "Product C - Clothing", "slug": f"product-c-{suf}", "price": "75.00",
             "category_ids": [cat_c.data['id']], "language": "en", "is_active": True,
             "track_inventory": False, "stock_quantity": 100

@@ -64,7 +64,7 @@ class TestMediaUpload:
         })
         assert cat_res.status_code == 201
         
-        prod_res = authenticated_client.post('/api/v1/shop/products/', {
+        prod_res = authenticated_client.post('/api/v1/shop/admin/products/', {
             'name': f'Camera {suffix}', 'slug': f'camera-{suffix}', 'price': '599.00', 'language': 'en'
         })
         assert prod_res.status_code == 201
