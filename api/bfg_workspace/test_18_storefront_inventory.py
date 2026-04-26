@@ -23,7 +23,7 @@ class TestStorefrontInventory:
         cat_id = cat_res.data['id']
 
         prod_slug = f"test-product-inventory-{suf}"
-        prod_res = admin_client.post('/api/v1/shop/products/', {
+        prod_res = admin_client.post('/api/v1/shop/admin/products/', {
             "name": "Test Product with Inventory",
             "slug": prod_slug,
             "price": "99.99",
@@ -65,7 +65,7 @@ class TestStorefrontInventory:
         cat_id = cat_res.data['id']
 
         prod_slug = f"inventory-test-product-{suf}"
-        prod_res = admin_client.post('/api/v1/shop/products/', {
+        prod_res = admin_client.post('/api/v1/shop/admin/products/', {
             "name": "Inventory Test Product",
             "slug": prod_slug,
             "price": "79.99",
@@ -102,7 +102,7 @@ class TestStorefrontInventory:
         cat_id = cat_res.data['id']
 
         prod_slug = f"multi-warehouse-product-{suf}"
-        prod_res = admin_client.post('/api/v1/shop/products/', {
+        prod_res = admin_client.post('/api/v1/shop/admin/products/', {
             "name": "Multi-Warehouse Product",
             "slug": prod_slug,
             "price": "59.99",

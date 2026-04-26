@@ -22,7 +22,7 @@ class TestPaymentFlow:
         category_id = cat_res.data['id']
         
         # Create product via API
-        prod_res = authenticated_client.post('/api/v1/shop/products/', {
+        prod_res = authenticated_client.post('/api/v1/shop/admin/products/', {
             'name': 'Test Product',
             'slug': 'test-product',
             'sku': 'TEST001',

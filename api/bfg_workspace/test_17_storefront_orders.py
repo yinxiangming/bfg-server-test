@@ -40,7 +40,7 @@ class TestStorefrontOrders:
         })
         cat_id = cat_res.data['id']
         
-        prod_res = authenticated_client.post('/api/v1/shop/products/', {
+        prod_res = authenticated_client.post('/api/v1/shop/admin/products/', {
             "name": f"T-Shirt {suffix}", "slug": f"t-shirt-{suffix}", "sku": f"TSHIRT-{suffix}".upper(),
             "price": "25.00",
             "category_ids": [cat_id], "language": "en", "is_active": True,
@@ -132,7 +132,7 @@ class TestStorefrontOrders:
         })
         cat_id = cat_res.data['id']
         
-        prod_res = authenticated_client.post('/api/v1/shop/products/', {
+        prod_res = authenticated_client.post('/api/v1/shop/admin/products/', {
             "name": f"Test Product {suffix}", "slug": f"test-product-{suffix}", "sku": f"SKU-{suffix}".upper(),
             "price": "100.00",
             "category_ids": [cat_id], "language": "en", "is_active": True,
@@ -233,7 +233,7 @@ class TestStorefrontOrders:
         })
         cat_id = cat_res.data['id']
         
-        prod_res = authenticated_client.post('/api/v1/shop/products/', {
+        prod_res = authenticated_client.post('/api/v1/shop/admin/products/', {
             "name": f"Test Product {suffix}", "slug": f"test-product-{suffix}", "sku": f"SKU-{suffix}".upper(),
             "price": "100.00",
             "category_ids": [cat_id], "language": "en", "is_active": True,

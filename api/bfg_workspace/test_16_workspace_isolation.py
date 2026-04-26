@@ -37,7 +37,7 @@ def _setup_workspace_data(client, workspace, customer):
         "name": f"Category-{suf}", "slug": f"category-{suf}", "language": "en", "is_active": True,
     })
     assert cat.status_code == 201, cat.data
-    prod = client.post("/api/v1/shop/products/", {
+    prod = client.post("/api/v1/shop/admin/products/", {
         "name": f"Product-{suf}", "slug": f"product-{suf}", "sku": f"PROD-001-{suf}", "price": "100.00",
         "category_ids": [cat.data["id"]], "language": "en", "is_active": True,
     })
@@ -90,7 +90,7 @@ class TestWorkspaceIsolation:
         self, admin_client, admin_client2, setup_workspace1_data, setup_workspace2_data
     ):
         workspace2_product = setup_workspace2_data["product"]
-        response = admin_client.get(f'/api/v1/shop/products/{workspace2_product.id}/')
+        response = admin_client.get(f'/api/v1/shop/admin/products/{workspace2_product.id}/')
         assert response.status_code == 404
 
     def test_cannot_access_other_workspace_orders(
@@ -134,7 +134,7 @@ class TestWorkspaceIsolation:
     def test_product_list_only_shows_own_workspace(
         self, admin_client, admin_client2, setup_workspace1_data, setup_workspace2_data
     ):
-        response = admin_client.get('/api/v1/shop/products/')
+        response = admin_client.get('/api/v1/shop/admin/products/')
         assert response.status_code == 200
         data = response.data.get('results', response.data) if isinstance(response.data, dict) else response.data
         product_ids = [p['id'] for p in data]
@@ -157,12 +157,12 @@ class TestWorkspaceIsolation:
         workspace2_product = setup_workspace2_data["product"]
         original_name = workspace2_product.name
         response = admin_client.patch(
-            f'/api/v1/shop/products/{workspace2_product.id}/',
+            f'/api/v1/shop/admin/products/{workspace2_product.id}/',
             {'name': 'Hacked Product'}
         )
         assert response.status_code in [404, 403]
         # Verify via ws2 client that product was not modified
-        get_res = admin_client2.get(f'/api/v1/shop/products/{workspace2_product.id}/')
+        get_res = admin_client2.get(f'/api/v1/shop/admin/products/{workspace2_product.id}/')
         assert get_res.status_code == 200
         assert get_res.data.get("name") != "Hacked Product"
 
@@ -171,10 +171,10 @@ class TestWorkspaceIsolation:
     ):
         workspace2_product = setup_workspace2_data["product"]
         product_id = workspace2_product.id
-        response = admin_client.delete(f'/api/v1/shop/products/{product_id}/')
+        response = admin_client.delete(f'/api/v1/shop/admin/products/{product_id}/')
         assert response.status_code in [404, 403]
         # Verify product still exists via ws2 client
-        get_res = admin_client2.get(f'/api/v1/shop/products/{product_id}/')
+        get_res = admin_client2.get(f'/api/v1/shop/admin/products/{product_id}/')
         assert get_res.status_code == 200
 
     def test_cannot_create_order_with_other_workspace_data(

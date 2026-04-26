@@ -31,7 +31,7 @@ class TestStorefrontProducts:
         
         # Create product
         prod_slug = f"wireless-headphones-{suf}"
-        prod_res = admin_client.post('/api/v1/shop/products/', {
+        prod_res = admin_client.post('/api/v1/shop/admin/products/', {
             "name": "Wireless Headphones",
             "slug": prod_slug,
             "sku": f"WH-001-{suf}",
@@ -101,7 +101,7 @@ class TestStorefrontProducts:
         cat_id = cat_res.data['id']
         
         prod_slug = f"test-product-{suf}"
-        prod_res = admin_client.post('/api/v1/shop/products/', {
+        prod_res = admin_client.post('/api/v1/shop/admin/products/', {
             "name": "Test Product",
             "slug": prod_slug,
             "price": "50.00",
@@ -140,7 +140,7 @@ class TestStorefrontProducts:
         cat_id = cat_res.data['id']
         
         # Create featured product
-        featured_res = admin_client.post('/api/v1/shop/products/', {
+        featured_res = admin_client.post('/api/v1/shop/admin/products/', {
             "name": f"Featured Product {suf}",
             "slug": f"featured-product-{suf}",
             "price": "100.00",
@@ -152,7 +152,7 @@ class TestStorefrontProducts:
         featured_id = featured_res.data['id']
         
         # Create non-featured product
-        normal_res = admin_client.post('/api/v1/shop/products/', {
+        normal_res = admin_client.post('/api/v1/shop/admin/products/', {
             "name": f"Normal Product {suf}",
             "slug": f"normal-product-{suf}",
             "price": "50.00",
@@ -196,7 +196,7 @@ class TestStorefrontProducts:
         cat_id = cat_res.data['id']
 
         prod_slug = f"reviewable-product-{suf}"
-        prod_res = admin_client.post('/api/v1/shop/products/', {
+        prod_res = admin_client.post('/api/v1/shop/admin/products/', {
             "name": "Reviewable Product",
             "slug": prod_slug,
             "price": "75.00",
@@ -262,7 +262,7 @@ class TestStorefrontProducts:
         cat_id = cat_res.data['id']
         
         prod_slug = f"variant-product-{suf}"
-        prod_res = admin_client.post('/api/v1/shop/products/', {
+        prod_res = admin_client.post('/api/v1/shop/admin/products/', {
             "name": "Variant Product",
             "slug": prod_slug,
             "price": "80.00",
@@ -312,7 +312,7 @@ class TestStorefrontProducts:
         ]
         
         for prod_data in products_data:
-            admin_client.post('/api/v1/shop/products/', {
+            admin_client.post('/api/v1/shop/admin/products/', {
                 "name": prod_data["name"],
                 "slug": prod_data["slug"],
                 "price": prod_data["price"],
@@ -371,7 +371,7 @@ class TestStorefrontProducts:
         cat_id = cat_res.data['id']
 
         prod_suf = uuid.uuid4().hex[:8]
-        prod1_res = admin_client.post('/api/v1/shop/products/', {
+        prod1_res = admin_client.post('/api/v1/shop/admin/products/', {
             "name": "Cheap Product",
             "slug": f"cheap-product-{prod_suf}",
             "price": "25.00",
@@ -382,7 +382,7 @@ class TestStorefrontProducts:
         })
         assert prod1_res.status_code == 201
 
-        prod2_res = admin_client.post('/api/v1/shop/products/', {
+        prod2_res = admin_client.post('/api/v1/shop/admin/products/', {
             "name": "Premium Product",
             "slug": f"premium-product-{prod_suf}",
             "price": "75.00",
@@ -393,7 +393,7 @@ class TestStorefrontProducts:
         })
         assert prod2_res.status_code == 201
 
-        prod3_res = admin_client.post('/api/v1/shop/products/', {
+        prod3_res = admin_client.post('/api/v1/shop/admin/products/', {
             "name": "Expensive Product",
             "slug": f"expensive-product-{prod_suf}",
             "price": "125.00",

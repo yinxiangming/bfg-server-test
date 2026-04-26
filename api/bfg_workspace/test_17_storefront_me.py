@@ -189,7 +189,7 @@ class TestStorefrontMe:
         })
         cat_id = cat_res.data['id']
         
-        prod_res = authenticated_client.post('/api/v1/shop/products/', {
+        prod_res = authenticated_client.post('/api/v1/shop/admin/products/', {
             "name": f"T-Shirt {suffix}",
             "slug": f"t-shirt-{suffix}",
             "sku": f"TSHIRT-{suffix}".upper(),

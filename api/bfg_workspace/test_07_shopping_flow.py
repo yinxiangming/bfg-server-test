@@ -20,7 +20,7 @@ class TestShoppingFlow:
         cat_id = cat_res.data['id']
         
         # Create product
-        prod_res = authenticated_client.post('/api/v1/shop/products/', {
+        prod_res = authenticated_client.post('/api/v1/shop/admin/products/', {
             "name": f"T-Shirt {suffix}", "slug": f"t-shirt-{suffix}", "category_ids": [cat_id], 
             "price": "20.00", "language": "en"
         })
@@ -95,7 +95,7 @@ class TestShoppingFlow:
         assert cat_res.status_code == 201
         cat_id = cat_res.data['id']
 
-        prod_res = authenticated_client.post('/api/v1/shop/products/', {
+        prod_res = authenticated_client.post('/api/v1/shop/admin/products/', {
             "name": f"Checkout Product {suffix}", "slug": f"checkout-product-{suffix}",
             "price": "50.00", "category_ids": [cat_id], "language": "en",
             "is_active": True, "track_inventory": False

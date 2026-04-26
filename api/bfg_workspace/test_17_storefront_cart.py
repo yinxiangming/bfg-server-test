@@ -23,7 +23,7 @@ class TestStorefrontCart:
         })
         cat_id = cat_res.data['id']
         
-        prod_res = admin_client.post('/api/v1/shop/products/', {
+        prod_res = admin_client.post('/api/v1/shop/admin/products/', {
             "name": "Python Guide", "slug": f"python-guide-{suf}", "price": "29.99",
             "category_ids": [cat_id], "language": "en", "is_active": True,
             "track_inventory": False  # Disable inventory tracking for this test
@@ -86,7 +86,7 @@ class TestStorefrontCart:
         })
         cat_id = cat_res.data['id']
         
-        prod_res = admin_client.post('/api/v1/shop/products/', {
+        prod_res = admin_client.post('/api/v1/shop/admin/products/', {
             "name": f"Toy Car {suf}", "slug": f"toy-car-{suf}", "price": "15.99",
             "category_ids": [cat_id], "language": "en", "is_active": True,
             "track_inventory": False  # Disable inventory tracking for this test
@@ -122,7 +122,7 @@ class TestStorefrontCart:
         })
         cat_id = cat_res.data['id']
         
-        prod_res = admin_client.post('/api/v1/shop/products/', {
+        prod_res = admin_client.post('/api/v1/shop/admin/products/', {
             "name": f"Cart Product {suf}",
             "slug": f"cart-product-{suf}",
             "price": "45.00",

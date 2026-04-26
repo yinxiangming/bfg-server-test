@@ -39,7 +39,7 @@ class TestProductManagement:
             "language": "en"
         }
         
-        prod_res = authenticated_client.post('/api/v1/shop/products/', prod_payload)
+        prod_res = authenticated_client.post('/api/v1/shop/admin/products/', prod_payload)
         if prod_res.status_code != 201:
             print(f"\n⚠️  Product creation failed with {prod_res.status_code}")
             print(f"Response: {prod_res.data}")
@@ -67,7 +67,7 @@ class TestProductManagement:
         })
         assert cat_res.status_code == 201
         
-        prod_res = authenticated_client.post('/api/v1/shop/products/', {
+        prod_res = authenticated_client.post('/api/v1/shop/admin/products/', {
             'name': 'T-Shirt', 'slug': 't-shirt', 'price': '25.00', 'language': 'en'
         })
         assert prod_res.status_code == 201
