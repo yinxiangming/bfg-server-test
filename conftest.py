@@ -48,10 +48,22 @@ def _get_base_url():
     return get_base_url(require=True)
 
 
-def _decode_user_id_from_token(token):
+def _transport_headers(**headers):
+    """Add reverse-proxy transport metadata for local production-mode runs."""
+    forwarded_proto = os.environ.get("BFG2_E2E_FORWARDED_PROTO", "").strip()
+    if forwarded_proto:
+        headers["X-Forwarded-Proto"] = forwarded_proto
+    return headers
+
+
+def _decode_token_payload(token):
     payload_b64 = token.split(".")[1]
     payload_b64 += "=" * (-len(payload_b64) % 4)
-    payload = json.loads(base64.urlsafe_b64decode(payload_b64).decode("utf-8"))
+    return json.loads(base64.urlsafe_b64decode(payload_b64).decode("utf-8"))
+
+
+def _decode_user_id_from_token(token):
+    payload = _decode_token_payload(token)
     user_id = payload.get("user_id") or payload.get("userId") or payload.get("uid") or payload.get("id")
     assert user_id is not None, "Could not decode user_id from JWT"
     try:
@@ -87,14 +99,24 @@ def _get_token(base, identifier, password):
     last_error = None
     for body in bodies:
         try:
-            last = requests.post(url, json=body, timeout=10)
+            last = requests.post(
+                url,
+                headers=_transport_headers(),
+                json=body,
+                timeout=10,
+            )
         except Exception as exc:
             last_error = exc
             continue
         if last.status_code == 200:
             token = last.json().get("access")
             if token:
-                return {"token": token, "user_id": _decode_user_id_from_token(token)}
+                payload = _decode_token_payload(token)
+                return {
+                    "token": token,
+                    "user_id": _decode_user_id_from_token(token),
+                    "workspace_id": payload.get("workspace_id"),
+                }
     # requests.Response is falsy for non-2xx; use explicit None checks.
     snippet = getattr(last, "text", "")[:300] if last is not None else ""
     if last is None and last_error is not None:
@@ -112,6 +134,7 @@ def _register_and_login(base, email, password, first_name="API", last_name="Inte
     """Register user (or login if exists). Returns {token, user_id}."""
     r = requests.post(
         f"{base}/api/v1/auth/register/",
+        headers=_transport_headers(),
         json={
             "email": email,
             "password": password,
@@ -133,16 +156,25 @@ def _create_workspace(base, token, name, slug):
     """Create workspace with given token. Returns {id, slug}."""
     r = requests.post(
         f"{base}/api/v1/workspaces/",
-        headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+        headers=_transport_headers(
+            Authorization=f"Bearer {token}",
+            **{"Content-Type": "application/json"},
+        ),
         json={"name": name, "slug": slug, "email": "apitest@example.com"},
         timeout=10,
     )
     if r.status_code == 201:
         d = r.json()
+        assert d.get("slug") == slug, (
+            f"Workspace create returned unexpected slug: expected={slug!r} got={d.get('slug')!r}"
+        )
         return {"id": d["id"], "slug": d["slug"]}
     r2 = requests.get(
         f"{base}/api/v1/workspaces/",
-        headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+        headers=_transport_headers(
+            Authorization=f"Bearer {token}",
+            **{"Content-Type": "application/json"},
+        ),
         timeout=10,
     )
     assert r2.status_code == 200, r2.text
@@ -151,8 +183,10 @@ def _create_workspace(base, token, name, slug):
     for item in results:
         if item.get("slug") == slug:
             return {"id": item["id"], "slug": item.get("slug", slug)}
-    assert results, "No workspaces found"
-    return {"id": results[0]["id"], "slug": results[0].get("slug", slug)}
+    raise AssertionError(
+        f"Could not create or find the requested workspace slug={slug!r}: "
+        f"create={r.status_code} {r.text[:200]}"
+    )
 
 
 def _create_customer_in_workspace(base, token, workspace_id, user_id):
@@ -160,11 +194,11 @@ def _create_customer_in_workspace(base, token, workspace_id, user_id):
     for payload in [{"user_id": user_id, "company_name": "Test Co", "tax_number": "TAX"}, {"user": user_id, "company_name": "Test Co", "tax_number": "TAX"}]:
         r = requests.post(
             f"{base}/api/v1/customers/",
-            headers={
+            headers=_transport_headers(**{
                 "Authorization": f"Bearer {token}",
                 "X-Workspace-Id": str(workspace_id),
                 "Content-Type": "application/json",
-            },
+            }),
             json=payload,
             timeout=10,
         )
@@ -182,11 +216,11 @@ def _add_user_as_staff(base, admin_token, workspace_id, user_id, role_code="admi
     """
     role_resp = requests.get(
         f"{base}/api/v1/staff-roles/",
-        headers={
+        headers=_transport_headers(**{
             "Authorization": f"Bearer {admin_token}",
             "X-Workspace-Id": str(workspace_id),
             "Content-Type": "application/json",
-        },
+        }),
         timeout=10,
     )
     if role_resp.status_code != 200:
@@ -200,11 +234,11 @@ def _add_user_as_staff(base, admin_token, workspace_id, user_id, role_code="admi
                              f"available={[r.get('code') for r in roles]}")
     r = requests.post(
         f"{base}/api/v1/staff-members/",
-        headers={
+        headers=_transport_headers(**{
             "Authorization": f"Bearer {admin_token}",
             "X-Workspace-Id": str(workspace_id),
             "Content-Type": "application/json",
-        },
+        }),
         json={"user_id": user_id, "role_id": role_id},
         timeout=10,
     )
@@ -231,11 +265,11 @@ def _activate_user(base, admin_token, workspace_id, user_id):
     try:
         r = requests.patch(
             f"{base}/api/v1/users/{user_id}/",
-            headers={
+            headers=_transport_headers(**{
                 "Authorization": f"Bearer {admin_token}",
                 "X-Workspace-Id": str(workspace_id),
                 "Content-Type": "application/json",
-            },
+            }),
             json={"is_active": True},
             timeout=10,
         )
@@ -251,36 +285,39 @@ def _activate_user(base, admin_token, workspace_id, user_id):
 
 def _ensure_workspace_admin(base, bootstrap_token, workspace_id, email, password,
                             first_name, last_name):
-    """
-    Make sure ``email`` exists, is an admin StaffMember of ``workspace_id``,
-    and return a JWT for them.
-
-    The token returned is the register-time access token. At register
-    time, the user has no memberships yet so
-    ``CustomTokenObtainPairSerializer._resolve_workspace_id`` returns
-    ``None`` — the JWT therefore carries no ``workspace_id`` claim and
-    ``WorkspaceMiddleware`` falls back to the ``X-Workspace-Id`` request
-    header for tenant resolution. That's exactly what each per-workspace
-    admin client needs.
-
-    We deliberately skip a re-login because workspace servers with
-    ``EMAIL_VERIFICATION_REQUIRED=true`` flip the user inactive after
-    register, and ``/auth/token/`` rejects inactive accounts. The
-    register-time token still authenticates because simplejwt does not
-    re-check ``is_active`` on each request.
-    """
+    """Create an admin membership, then mint a JWT bound to that workspace."""
     user = _register_and_login(base, email, password, first_name, last_name)
     _add_user_as_staff(base, bootstrap_token, workspace_id, user["user_id"], role_code="admin")
     _activate_user(base, bootstrap_token, workspace_id, user["user_id"])
-    # Re-login now that the user is active again so the JWT picks up the
-    # new StaffMember (claim resolves to ``workspace_id``) — but if login
-    # fails (e.g. simplejwt rejects re-issued claims), fall back to the
-    # register-time token, which is still valid now that the user is active.
-    try:
-        fresh = _get_token(base, email, password)
-        return {"token": fresh["token"], "user_id": user["user_id"]}
-    except AssertionError:
-        return {"token": user["token"], "user_id": user["user_id"]}
+    fresh = _get_token(base, email, password)
+    assert int(fresh.get("workspace_id")) == int(workspace_id), (
+        f"Admin JWT is not bound to workspace {workspace_id}: "
+        f"claim={fresh.get('workspace_id')!r}"
+    )
+    return {"token": fresh["token"], "user_id": user["user_id"]}
+
+
+def _ensure_workspace_customer(base, admin_token, workspace_id, email, password,
+                               first_name, last_name):
+    """Create a customer membership, then mint a JWT bound to that workspace."""
+    user = _register_and_login(base, email, password, first_name, last_name)
+    customer = _create_customer_in_workspace(
+        base,
+        admin_token,
+        workspace_id,
+        user["user_id"],
+    )
+    _activate_user(base, admin_token, workspace_id, user["user_id"])
+    fresh = _get_token(base, email, password)
+    assert int(fresh.get("workspace_id")) == int(workspace_id), (
+        f"Customer JWT is not bound to workspace {workspace_id}: "
+        f"claim={fresh.get('workspace_id')!r}"
+    )
+    return {
+        "token": fresh["token"],
+        "user_id": user["user_id"],
+        "customer": customer,
+    }
 
 
 def _is_local_api_host(base: str) -> bool:
@@ -357,6 +394,15 @@ def _session():
     # ── ws1: workspace + per-workspace admin/customer with their own JWTs ──
     ws1_slug = f"test-workspace-{uuid.uuid4().hex[:6]}"
     ws1 = _create_workspace(base, bootstrap_token, "Test Workspace", ws1_slug)
+    if use_superuser:
+        # Re-login after the first membership exists so the bootstrap JWT has
+        # the tenant claim production middleware requires. An existing default
+        # workspace may legitimately remain the selected claim.
+        bootstrap = _login_only(base, superuser_email, superuser_password)
+        bootstrap_token = bootstrap["token"]
+        assert bootstrap["workspace_id"] is not None, (
+            "Bootstrap JWT must carry a workspace_id claim in production mode"
+        )
 
     # Per-workspace admin user — unique email so each test session gets a
     # fresh StaffMember row whose JWT claim resolves to ws1 only.
@@ -370,9 +416,16 @@ def _session():
     # Per-workspace customer (separate user from admin so isolation tests
     # can verify ws1.customer.id != ws2.customer.id).
     ws1_customer_email = f"customer1_{uuid.uuid4().hex[:8]}@apitest.test"
-    u2 = _register_and_login(base, ws1_customer_email, customer_password, "Customer1", "Integration")
-    _activate_user(base, bootstrap_token, ws1["id"], u2["user_id"])
-    cust1 = _create_customer_in_workspace(base, u1["token"], ws1["id"], u2["user_id"])
+    u2 = _ensure_workspace_customer(
+        base,
+        u1["token"],
+        ws1["id"],
+        ws1_customer_email,
+        customer_password,
+        "Customer1",
+        "Integration",
+    )
+    cust1 = u2["customer"]
 
     # ── ws2: same pattern with its own admin + customer ────────────────
     ws2_slug = f"test-workspace-2-{uuid.uuid4().hex[:6]}"
@@ -384,9 +437,19 @@ def _session():
         ws2_admin_email, ws1_admin_password, "Admin2", "Integration",
     )
     ws2_customer_email = f"customer2_{uuid.uuid4().hex[:8]}@apitest.test"
-    u4 = _register_and_login(base, ws2_customer_email, customer_password, "Customer2", "Integration")
-    _activate_user(base, bootstrap_token, ws2["id"], u4["user_id"])
-    cust2 = _create_customer_in_workspace(base, u3["token"], ws2["id"], u4["user_id"])
+    u4 = _ensure_workspace_customer(
+        base,
+        u3["token"],
+        ws2["id"],
+        ws2_customer_email,
+        customer_password,
+        "Customer2",
+        "Integration",
+    )
+    cust2 = u4["customer"]
+
+    assert ws1["id"] != ws2["id"], "Isolation tests require two distinct workspaces"
+    assert ws1["slug"] != ws2["slug"], "Isolation tests require two distinct workspace slugs"
 
     return {
         "superadmin_token": bootstrap_token,
@@ -638,5 +701,13 @@ def other_user_client(workspace, _session):
     if not customer_password:
         pytest.fail("BFG2_E2E_CUSTOMER_PASSWORD must be set in env for API integration tests")
     email = f"apitest-other-{uuid.uuid4().hex[:8]}@test.com"
-    u = _register_and_login(base, email, customer_password, "Other", "User")
+    u = _ensure_workspace_customer(
+        base,
+        _session["ws1"]["admin_token"],
+        workspace.id,
+        email,
+        customer_password,
+        "Other",
+        "User",
+    )
     return RemoteAPIClient(workspace=workspace, token=u["token"])

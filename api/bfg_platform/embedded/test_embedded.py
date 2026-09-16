@@ -31,7 +31,7 @@ import os
 import uuid
 import pytest
 
-from client_remote import RemoteAPIClient, get_base_url
+from client_remote import RemoteAPIClient, get_base_url, transport_headers
 
 
 def _get_base():
@@ -41,7 +41,12 @@ def _get_base():
 def _login(base, email, password):
     """Login via token endpoint, return JWT access token."""
     import requests as http
-    r = http.post(f"{base}/api/v1/auth/token/", json={"email": email, "password": password}, timeout=10)
+    r = http.post(
+        f"{base}/api/v1/auth/token/",
+        headers=transport_headers(),
+        json={"email": email, "password": password},
+        timeout=10,
+    )
     assert r.status_code == 200, f"Login failed for {email}: {r.status_code} {r.text[:200]}"
     return r.json()["access"]
 

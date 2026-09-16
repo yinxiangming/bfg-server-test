@@ -9,6 +9,14 @@ import uuid
 import requests
 
 
+def transport_headers(**headers):
+    """Add reverse-proxy metadata for local production-mode E2E runs."""
+    forwarded_proto = os.environ.get("BFG2_E2E_FORWARDED_PROTO", "").strip()
+    if forwarded_proto:
+        headers["X-Forwarded-Proto"] = forwarded_proto
+    return headers
+
+
 def get_base_url(require=False):
     """Return API base URL from BASE_URL. If require=True, assert it is set for integration tests."""
     base = os.environ.get("BASE_URL") or ""
@@ -20,18 +28,27 @@ def get_base_url(require=False):
 class RemoteAPIClient:
     """Mimics DRF client: .request(), .data, .status_code, .generic(), .get, .post."""
 
-    def __init__(self, workspace=None, token=None):
+    def __init__(self, workspace=None, token=None, persist_cookies=True):
         self.base_url = get_base_url()
         self.workspace = workspace
         self._token = token
         self._customer = None
         # Persist Set-Cookie (e.g. sessionid) across requests for anonymous storefront cart
         self._http = requests.Session()
+        self._persist_cookies = persist_cookies
         # Secure servers mint a signed anonymous-cart bearer token on the first
         # response. Never invent an unsigned client-side cart key.
         self._storefront_cart_session = None
         # Keep grouped module routes intact so tests hit the same URLs as the Django server.
         self._should_normalize = False
+
+    @property
+    def cart_token(self):
+        return self._storefront_cart_session
+
+    def use_cart_token(self, token):
+        """Use a server-issued guest cart token on subsequent requests."""
+        self._storefront_cart_session = token
 
     def _normalize_path(self, path: str) -> str:
         """
@@ -69,7 +86,9 @@ class RemoteAPIClient:
             self._token = None
 
     def _headers(self):
-        headers = {"Content-Type": "application/json", "Accept": "application/json"}
+        headers = transport_headers(
+            **{"Content-Type": "application/json", "Accept": "application/json"}
+        )
         if self._token:
             headers["Authorization"] = f"Bearer {self._token}"
         if self.workspace:
@@ -123,10 +142,12 @@ class RemoteAPIClient:
 
             # Don't force JSON content-type for multipart; requests needs to set boundary.
             headers.pop("Content-Type", None)
-            r = self._http.request(method, url, headers=headers, files=files, data=form_data, timeout=30)
+            requester = self._http.request if self._persist_cookies else requests.request
+            r = requester(method, url, headers=headers, files=files, data=form_data, timeout=30)
         else:
             body = json.dumps(data) if isinstance(data, dict) else (data or None)
-            r = self._http.request(method, url, headers=headers, data=body, timeout=30)
+            requester = self._http.request if self._persist_cookies else requests.request
+            r = requester(method, url, headers=headers, data=body, timeout=30)
         try:
             out_data = r.json()
         except Exception:

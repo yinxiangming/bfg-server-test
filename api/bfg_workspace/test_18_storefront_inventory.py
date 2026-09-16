@@ -92,7 +92,10 @@ class TestStorefrontInventory:
         assert len(variants) > 0
         tv = next((v for v in variants if v['id'] == var_id), None)
         assert tv is not None
-        assert tv.get('stock_quantity') is not None or 'stock_quantity' in tv
+        assert 'stock_quantity' in tv
+        assert tv['stock_quantity'] is None
+        assert tv.get('stock_available') is None
+        assert tv['in_stock'] is True
 
     def test_multiple_warehouse_inventory(self, workspace, admin_client, anonymous_api_client):
         """Test product with track_inventory is visible in storefront"""
@@ -129,3 +132,7 @@ class TestStorefrontInventory:
         assert len(variants) > 0
         tv = next((v for v in variants if v['id'] == var_id), None)
         assert tv is not None
+        assert 'stock_quantity' in tv
+        assert tv['stock_quantity'] is None
+        assert tv.get('stock_available') is None
+        assert tv['in_stock'] is True

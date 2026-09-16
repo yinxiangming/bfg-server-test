@@ -5,6 +5,8 @@ from urllib.parse import urlparse
 
 import pytest
 
+from client_remote import transport_headers
+
 _env = Path(__file__).parent / ".env"
 if _env.exists():
     try:
@@ -48,7 +50,11 @@ def _is_standalone_server_up() -> bool:
     if not base:
         return False
     try:
-        r = requests.get(f"{base}/api/v1/platform/plans/", timeout=3)
+        r = requests.get(
+            f"{base}/api/v1/platform/plans/",
+            headers=transport_headers(),
+            timeout=3,
+        )
         return r.status_code < 500
     except Exception:
         return False
