@@ -45,6 +45,7 @@ bfg-server-test/
 | `BFG2_E2E_SUPERUSER_PASSWORD` | Superuser password | required |
 | `BFG2_E2E_CUSTOMER_PASSWORD` | Password for test customer accounts | required |
 | `BFG2_E2E_ADMIN_EMAIL` | Admin email (non-superuser bootstrap) | `admin@test.com` |
+| `BFG2_E2E_FORWARDED_PROTO` | Reverse-proxy protocol for local production-mode runs | unset |
 
 See `.env.example` for the full list.
 
@@ -54,6 +55,10 @@ See `.env.example` for the full list.
 ```bash
 BASE_URL=http://localhost:8000 pytest api/bfg_workspace/ -m api_integration -v
 ```
+
+When the server runs with production HTTPS redirects behind a local HTTP
+connection, add `BFG2_E2E_FORWARDED_PROTO=https` to emulate the terminating
+reverse proxy without weakening the server's transport settings.
 
 ### Platform tests (both modes)
 ```bash

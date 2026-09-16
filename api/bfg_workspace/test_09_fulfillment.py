@@ -101,25 +101,21 @@ class TestFulfillment:
         carrier_res = authenticated_client.post('/api/v1/delivery/carriers/', {
             "name": f"Carrier {suffix}", "code": f"CR-{suffix}", "is_active": True
         })
-        if carrier_res.status_code == 201:
-            service_res = authenticated_client.post('/api/v1/delivery/freight-services/', {
-                "carrier": carrier_res.data['id'],
-                "name": f"Service {suffix}", "code": f"SVC-{suffix}",
-                "base_price": "10.00", "price_per_kg": "5.00", "is_active": True
-            })
-            if service_res.status_code == 201:
-                payload["service_id"] = service_res.data['id']
-                payload["sender_address_id"] = sender_address_id
-                payload["recipient_address_id"] = recipient_address_id
-                payload["state"] = "PENDING"
+        assert carrier_res.status_code == 201, carrier_res.data
+        service_res = authenticated_client.post('/api/v1/delivery/freight-services/', {
+            "carrier": carrier_res.data['id'],
+            "name": f"Service {suffix}", "code": f"SVC-{suffix}",
+            "base_price": "10.00", "price_per_kg": "5.00", "is_active": True
+        })
+        assert service_res.status_code == 201, service_res.data
+        payload["service_id"] = service_res.data['id']
+        payload["sender_address_id"] = sender_address_id
+        payload["recipient_address_id"] = recipient_address_id
+        payload["state"] = "PENDING"
 
         response = authenticated_client.post('/api/v1/delivery/consignments/', payload)
         assert response.status_code == 201
-        # Python returns state, Node returns status
-        if 'state' in response.data:
-            assert response.data['state'] == "PENDING"
-        else:
-            assert response.data.get('status') in ('pending', 'PENDING', None)
+        assert response.data['state'] == "PENDING"
         
     def test_update_tracking(self, authenticated_client, workspace):
         """Test updating tracking info. Skips if carrier/service or PATCH consignment not implemented."""
