@@ -52,9 +52,10 @@ class TestStorefrontInventory:
         test_variant = next((v for v in variants if v['id'] == var_id), None)
         assert test_variant is not None
         assert 'stock_quantity' in test_variant
-        # Optional: backend may expose stock_available, stock_reserved, stock_by_warehouse
-        if 'stock_available' in test_variant:
-            assert test_variant['stock_quantity'] is not None
+        # Default storefront policy exposes availability without leaking exact stock.
+        assert test_variant['in_stock'] is True
+        assert test_variant['stock_quantity'] is None
+        assert test_variant.get('stock_available') is None
 
     def test_inventory_changes_reflected(self, workspace, admin_client, anonymous_api_client, warehouse):
         """Test that product/variant created via API is visible in storefront"""

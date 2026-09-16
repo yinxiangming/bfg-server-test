@@ -3,8 +3,56 @@ API integration test 17.5: Storefront Me API (API-only; same contract for all ba
 """
 
 import os
+import uuid
 import pytest
 from datetime import datetime, timezone
+
+
+def _create_payable_order(client, store, price='100.00'):
+    """Create an order owned by the authenticated customer's account."""
+    suffix = uuid.uuid4().hex[:8]
+    category_res = client.post('/api/v1/shop/categories/', {
+        'name': f'Me Payment Category {suffix}',
+        'slug': f'me-payment-category-{suffix}',
+        'language': 'en',
+        'is_active': True,
+    })
+    assert category_res.status_code == 201, category_res.data
+    product_res = client.post('/api/v1/shop/admin/products/', {
+        'name': f'Me Payment Product {suffix}',
+        'slug': f'me-payment-product-{suffix}',
+        'sku': f'MEPAY-{suffix}'.upper(),
+        'price': price,
+        'category_ids': [category_res.data['id']],
+        'language': 'en',
+        'is_active': True,
+        'track_inventory': False,
+    })
+    assert product_res.status_code == 201, product_res.data
+    cart_res = client.post('/api/v1/store/cart/add_item/', {
+        'product': product_res.data['id'],
+        'quantity': 1,
+    })
+    assert cart_res.status_code == 200, cart_res.data
+    address_res = client.post('/api/v1/me/addresses/', {
+        'full_name': 'Me Payment Customer',
+        'phone': '1234567890',
+        'address_line1': '100 Account St',
+        'city': 'City',
+        'country': 'US',
+        'postal_code': '12345',
+    })
+    assert address_res.status_code == 201, address_res.data
+    checkout_res = client.post(
+        '/api/v1/store/cart/checkout/',
+        {
+            'store': store.id,
+            'shipping_address': address_res.data['id'],
+        },
+        HTTP_X_CART_ID=str(cart_res.data['id']),
+    )
+    assert checkout_res.status_code == 201, checkout_res.data
+    return checkout_res.data
 
 
 @pytest.mark.api_integration
@@ -378,58 +426,40 @@ class TestStorefrontMe:
         payment_gateway,
         other_user_client,
     ):
-        """Test /api/v1/me/payments/ API; create order and payments via API."""
+        """Test /api/v1/me/payments/ with the current customer's checkout order."""
         from decimal import Decimal
-        # Create address and order via API
-        addr_res = authenticated_client.post("/api/v1/me/addresses/", {
-            "full_name": "Test User",
-            "phone": "1234567890",
-            "address_line1": "123 St",
-            "city": "City",
-            "country": "US",
-            "postal_code": "12345",
-        })
-        assert addr_res.status_code == 201
-        address_id = addr_res.data["id"]
-        order_res = authenticated_client.post("/api/v1/shop/orders/", {
-            "customer_id": customer.id,
-            "store_id": store.id,
-            "shipping_address_id": address_id,
-            "billing_address_id": address_id,
+        order = _create_payable_order(authenticated_client, store)
+        order_id = order['id']
+        invoices_res = authenticated_client.get(f'/api/v1/finance/invoices/?order={order_id}')
+        assert invoices_res.status_code == 200, invoices_res.data
+        invoices = invoices_res.data if isinstance(invoices_res.data, list) else invoices_res.data.get('results', [])
+        assert invoices, 'Checkout must create an invoice for the order'
+        payment_payload = {
+            "order_id": order_id,
+            "gateway_id": payment_gateway.id,
+            "currency_id": invoices[0]['currency'],
+            "amount": str(invoices[0]['total']),
             "status": "pending",
-            "payment_status": "pending",
-        })
-        assert order_res.status_code == 201
-        order_id = order_res.data["id"]
-        # Create payments via API
+        }
         p1 = authenticated_client.post("/api/v1/finance/payments/", {
-            "order_id": order_id,
-            "gateway_id": payment_gateway.id,
-            "currency_id": currency.id,
-            "amount": "100.00",
-            "status": "pending",
+            **payment_payload,
         })
-        p2 = authenticated_client.post("/api/v1/finance/payments/", {
-            "order_id": order_id,
-            "gateway_id": payment_gateway.id,
-            "currency_id": currency.id,
-            "amount": "50.00",
-            "status": "pending",
-        })
-        assert p1.status_code == 201 and p2.status_code == 201
+        assert p1.status_code == 201, p1.data
+        p2 = authenticated_client.post("/api/v1/finance/payments/", payment_payload)
+        assert p2.status_code == 400, p2.data
         payment1_id = p1.data["id"]
         # Test: List payments
         list_res = authenticated_client.get("/api/v1/me/payments/")
         assert list_res.status_code == 200
         payments = list_res.data if isinstance(list_res.data, list) else list_res.data.get("results", [])
-        assert len(payments) >= 2
+        assert len(payments) >= 1
         payment_ids = [p["id"] for p in payments]
         assert payment1_id in payment_ids
         # Test: Get payment detail
         detail_res = authenticated_client.get(f"/api/v1/me/payments/{payment1_id}/")
         assert detail_res.status_code == 200
         assert detail_res.data["id"] == payment1_id
-        assert detail_res.data["amount"] == "100.00"
+        assert Decimal(str(detail_res.data["amount"])) == Decimal(str(invoices[0]['total']))
         # Test: Filter by status
         status_res = authenticated_client.get("/api/v1/me/payments/?status=pending")
         assert status_res.status_code == 200
@@ -457,4 +487,3 @@ class TestStorefrontMe:
             detail_res = authenticated_client.get(f"/api/v1/me/invoices/{inv_id}/")
             assert detail_res.status_code == 200
             assert "id" in detail_res.data
-

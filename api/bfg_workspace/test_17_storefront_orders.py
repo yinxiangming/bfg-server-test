@@ -147,7 +147,7 @@ class TestStorefrontOrders:
             "product": prod_id, "quantity": 1
         })
         
-        addr_res = authenticated_client.post('/api/v1/addresses/', {
+        addr_res = authenticated_client.post('/api/v1/me/addresses/', {
             "full_name": "Test User", "phone": "1234567890",
             "address_line1": "123 St", "city": "City", "country": "US", "postal_code": "12345"
         })
@@ -247,7 +247,7 @@ class TestStorefrontOrders:
             "product": prod_id, "quantity": 1
         })
         
-        addr_res = authenticated_client.post('/api/v1/addresses/', {
+        addr_res = authenticated_client.post('/api/v1/me/addresses/', {
             "full_name": "Test User", "phone": "1234567890",
             "address_line1": "123 St", "city": "City", "country": "US", "postal_code": "12345"
         })
@@ -265,4 +265,3 @@ class TestStorefrontOrders:
         })
         assert cancel_res.status_code == 200
         assert cancel_res.data['status'] == 'cancelled'
-

@@ -27,13 +27,10 @@ try:
     from dotenv import load_dotenv
     _conftest_file = Path(__file__).resolve()
     _server_env = _conftest_file.parent.parent.parent / ".env"
-    _base_url_preserved = os.environ.get("BASE_URL")
     if _server_env.is_file():
-        load_dotenv(_server_env, override=True)
+        load_dotenv(_server_env, override=False)
     elif (Path.cwd() / ".env").is_file():
-        load_dotenv(Path.cwd() / ".env", override=True)
-    if _base_url_preserved:
-        os.environ["BASE_URL"] = _base_url_preserved
+        load_dotenv(Path.cwd() / ".env", override=False)
 except ImportError:
     pass
 import uuid

@@ -840,6 +840,7 @@ class TestOrderCalculation:
     def test_11_gift_card_application(
         self,
         authenticated_client,
+        customer_client,
         workspace,
         customer,
         currency,
@@ -861,26 +862,33 @@ class TestOrderCalculation:
             balance=Decimal("50.00"),
             customer_id=customer.id,
         )
+        customer_address_id = _create_shipping_address_via_api(
+            customer_client,
+            customer.id,
+            full_name='Gift Card Customer',
+        )
 
-        authenticated_client.post("/api/v1/shop/carts/", {})
+        cart_res = customer_client.post("/api/v1/shop/carts/", {})
+        assert cart_res.status_code == 201, cart_res.data
 
-        authenticated_client.post('/api/v1/shop/carts/add_item/', {
+        add_res = customer_client.post('/api/v1/shop/carts/add_item/', {
             'product': products['products']['a'].id,
             'quantity': 2
         })
+        assert add_res.status_code == 200, add_res.data
         
         expected_subtotal = Decimal('200.00')
         
-        checkout_res = authenticated_client.post(
+        checkout_res = customer_client.post(
             "/api/v1/shop/carts/checkout/",
             {
                 "store": store_data["store"].id,
-                "shipping_address": store_data["shipping_address_id"],
+                "shipping_address": customer_address_id,
                 "gift_card_code": gift_card["code"],
             },
         )
         
-        assert checkout_res.status_code == 201
+        assert checkout_res.status_code == 201, checkout_res.data
         order_data = checkout_res.data
         
         assert Decimal(str(order_data['subtotal'])) == expected_subtotal
@@ -899,6 +907,7 @@ class TestOrderCalculation:
     def test_12_combined_coupon_and_gift_card(
         self,
         authenticated_client,
+        customer_client,
         workspace,
         customer,
         currency,
@@ -928,13 +937,20 @@ class TestOrderCalculation:
             balance=Decimal("30.00"),
             customer_id=customer.id,
         )
+        customer_address_id = _create_shipping_address_via_api(
+            customer_client,
+            customer.id,
+            full_name='Combined Discount Customer',
+        )
 
-        authenticated_client.post("/api/v1/shop/carts/", {})
+        cart_res = customer_client.post("/api/v1/shop/carts/", {})
+        assert cart_res.status_code == 201, cart_res.data
 
-        authenticated_client.post("/api/v1/shop/carts/add_item/", {
+        add_res = customer_client.post("/api/v1/shop/carts/add_item/", {
             "product": products["products"]["a"].id,
             "quantity": 2,
         })
+        assert add_res.status_code == 200, add_res.data
         
         expected_subtotal = Decimal('200.00')
         coupon_discount = self.calculate_percentage_discount(
@@ -943,17 +959,17 @@ class TestOrderCalculation:
         gift_card_amount = Decimal('30.00')
         total_discount = coupon_discount + gift_card_amount  # $50
         
-        checkout_res = authenticated_client.post(
+        checkout_res = customer_client.post(
             "/api/v1/shop/carts/checkout/",
             {
                 "store": store_data["store"].id,
-                "shipping_address": store_data["shipping_address_id"],
+                "shipping_address": customer_address_id,
                 "coupon_code": coupon["code"],
                 "gift_card_code": gift_card["code"],
             },
         )
         
-        assert checkout_res.status_code == 201
+        assert checkout_res.status_code == 201, checkout_res.data
         order_data = checkout_res.data
         
         assert Decimal(str(order_data['subtotal'])) == expected_subtotal
