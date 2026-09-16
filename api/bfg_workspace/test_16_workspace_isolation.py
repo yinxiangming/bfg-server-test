@@ -14,6 +14,7 @@ def _setup_workspace_data(client, workspace, customer):
     suf = uuid.uuid4().hex[:6]
     # Address
     addr = client.post("/api/v1/addresses/", {
+        "customer_id": customer.id,
         "full_name": "Test User", "phone": "1234567890",
         "address_line1": "123 St", "city": "City", "country": "US", "postal_code": "12345",
     })

@@ -27,8 +27,9 @@ class RemoteAPIClient:
         self._customer = None
         # Persist Set-Cookie (e.g. sessionid) across requests for anonymous storefront cart
         self._http = requests.Session()
-        # .NET storefront isolates carts by session header when unauthenticated
-        self._storefront_cart_session = uuid.uuid4().hex if token is None else None
+        # Secure servers mint a signed anonymous-cart bearer token on the first
+        # response. Never invent an unsigned client-side cart key.
+        self._storefront_cart_session = None
         # Keep grouped module routes intact so tests hit the same URLs as the Django server.
         self._should_normalize = False
 
@@ -130,6 +131,12 @@ class RemoteAPIClient:
             out_data = r.json()
         except Exception:
             out_data = r.text or {}
+        if (
+            not self._token
+            and isinstance(out_data, dict)
+            and out_data.get("cart_token")
+        ):
+            self._storefront_cart_session = out_data["cart_token"]
         return _Response(r.status_code, out_data)
 
     def get(self, path, **kwargs):

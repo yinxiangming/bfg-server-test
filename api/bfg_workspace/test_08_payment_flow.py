@@ -36,6 +36,7 @@ class TestPaymentFlow:
         
         # Create address via API
         addr_res = authenticated_client.post('/api/v1/addresses/', {
+            'customer_id': customer.id,
             'full_name': 'John Doe',
             'phone': '1234567890',
             'address_line1': '123 Main St',
@@ -81,6 +82,7 @@ class TestPaymentFlow:
         # Create Payment via API (amount should match order total)
         payment_payload = {
             "order_id": order_id,
+            "customer_id": customer.id,
             "gateway_id": payment_gateway.id,
             "currency_id": currency.id,
             "amount": str(order_total),
@@ -89,7 +91,7 @@ class TestPaymentFlow:
         
         payment_res = authenticated_client.post('/api/v1/finance/payments/', payment_payload)
         
-        assert payment_res.status_code == 201
+        assert payment_res.status_code == 201, payment_res.data
         assert payment_res.data['status'] == 'pending'
         assert Decimal(str(payment_res.data['amount'])) == order_total
 

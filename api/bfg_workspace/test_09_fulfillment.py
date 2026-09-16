@@ -41,7 +41,7 @@ class TestFulfillment:
             "product": prod_id, "quantity": 1
         })
         
-        recipient_res = authenticated_client.post('/api/v1/addresses/', {
+        recipient_res = authenticated_client.post('/api/v1/me/addresses/', {
             'full_name': 'John Doe',
             'phone': '0987654321',
             'address_line1': '123 Main St',
@@ -152,7 +152,7 @@ class TestFulfillment:
             "product": prod_id, "quantity": 1
         })
         
-        recipient_res = authenticated_client.post('/api/v1/addresses/', {
+        recipient_res = authenticated_client.post('/api/v1/me/addresses/', {
             'full_name': 'John Doe',
             'phone': '0987654321',
             'address_line1': '123 Main St',
@@ -334,7 +334,7 @@ class TestFulfillment:
             "product": prod_id, "quantity": 1
         })
         
-        addr_res = authenticated_client.post('/api/v1/addresses/', {
+        addr_res = authenticated_client.post('/api/v1/me/addresses/', {
             "full_name": "John Doe", "phone": "1234567890",
             "address_line1": "123 Main St", "city": "City", "country": "US", "postal_code": "12345"
         })

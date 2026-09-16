@@ -56,7 +56,7 @@ class TestShoppingFlow:
         """Test checkout preparation (address, shipping, product, full checkout)"""
         suffix = uuid.uuid4().hex[:6]
         # 1. Create Address via API
-        addr_res = authenticated_client.post("/api/v1/addresses/", {
+        addr_res = authenticated_client.post("/api/v1/me/addresses/", {
             "full_name": "John Doe",
             "address_line1": f"123 St {suffix}",
             "phone": "1234567890",

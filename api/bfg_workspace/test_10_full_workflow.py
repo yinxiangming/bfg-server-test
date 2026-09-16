@@ -62,7 +62,7 @@ class TestFullWorkflow:
         
         # --- Step 3: Checkout ---
         # Create Address for order via API
-        addr_res = authenticated_client.post('/api/v1/addresses/', {
+        addr_res = authenticated_client.post('/api/v1/me/addresses/', {
             "full_name": "John Doe",
             "phone": "1234567890",
             "address_line1": "123 Main St",
@@ -113,8 +113,18 @@ class TestFullWorkflow:
                 currency_id = create_res.data.get('id')
         assert currency_id, "Could not resolve or create USD currency for payment"
         
-        # Get order total from checkout response
+        # Use the invoice currency produced by checkout. The workspace default
+        # may differ from the first globally available currency.
         order_total = Decimal(str(checkout_res.data['total']))
+        invoices_res = authenticated_client.get(f'/api/v1/finance/invoices/?order={order_id}')
+        assert invoices_res.status_code == 200, invoices_res.data
+        invoices = (
+            invoices_res.data
+            if isinstance(invoices_res.data, list)
+            else invoices_res.data.get('results', [])
+        )
+        assert invoices, 'Checkout must create an invoice for the order'
+        currency_id = invoices[0]['currency']
         
         pay_res = authenticated_client.post('/api/v1/finance/payments/', {
             "order_id": order_id,
@@ -123,7 +133,7 @@ class TestFullWorkflow:
             "amount": str(order_total),  # Use calculated order total
             "status": "pending"
         })
-        assert pay_res.status_code == 201
+        assert pay_res.status_code == 201, pay_res.data
         payment_id = pay_res.data['id']
 
         # --- Step 5: Fulfillment with Packages ---
