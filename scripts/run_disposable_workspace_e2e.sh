@@ -51,6 +51,10 @@ export ALLOWED_HOSTS="127.0.0.1,localhost"
 export EMAIL_VERIFICATION_REQUIRED=false
 export BFG_SUPERUSER_BYPASS_WORKSPACE_PERMISSIONS=true
 export CELERY_BROKER_URL="memory://"
+export CELERY_RESULT_BACKEND="cache+memory://"
+export DJANGO_CACHE_URL=""
+export AWS_STORAGE_BUCKET_NAME=""
+export SENTRY_DSN=""
 export EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend"
 export INIT_ADMIN_PASSWORD="${admin_password}"
 export ADMIN_PASSWORD="${admin_password}"
@@ -79,6 +83,7 @@ stop_server() {
 trap stop_server EXIT INT TERM
 
 cd "${SERVER_DIR}"
+echo "Initializing disposable SQLite fixtures at ${run_root}"
 if ! "${SERVER_PYTHON}" manage.py init \
   --workspace-name "E2E Bootstrap" \
   --workspace-slug "e2e-bootstrap" \
@@ -88,6 +93,7 @@ if ! "${SERVER_PYTHON}" manage.py init \
   tail -100 "${init_log}" >&2 || true
   exit 1
 fi
+echo "Disposable initialization complete; starting loopback server"
 
 "${SERVER_PYTHON}" manage.py runserver "127.0.0.1:${port}" --noreload >"${server_log}" 2>&1 &
 server_pid="$!"
@@ -112,6 +118,7 @@ if [[ "${ready}" != "1" ]]; then
 fi
 
 cd "${TEST_ROOT}"
+echo "Running attested live HTTP contracts"
 if [[ "$#" -eq 0 ]]; then
   set -- api/bfg_workspace/ -m api_integration -q --tb=short
 fi

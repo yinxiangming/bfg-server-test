@@ -21,6 +21,9 @@ starts the server in production mode on a random loopback port, forwards
 `X-Forwarded-Proto: https`, seeds real fixtures, and runs the workspace HTTP
 suite. Runtime passwords and signing keys are generated per run. The server
 process is always stopped; the temporary directory is retained for inspection.
+The cache and Celery broker/result backend use process memory; fixture setup
+does not require or write a developer Redis service. S3 and Sentry environment
+configuration is disabled for the disposable runner.
 The server checkout must be a scratch clone containing a marker file whose only
 line is `bfg2-e2e-server-scratch-v1`; the runner refuses the canonical Nexus
 server path because seeding writes media fixtures into the checkout.

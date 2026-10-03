@@ -50,3 +50,12 @@ jobs:
           BFG2_E2E_SERVER_PYTHON: ${{ env.pythonLocation }}/bin/python
           BFG2_E2E_SERVER_SCRATCH_MARKER: ${{ github.workspace }}/.server/.bfg-e2e-scratch
         run: bash scripts/run_disposable_workspace_e2e.sh
+
+      - name: Retain disposable service logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: disposable-e2e-logs
+          path: /tmp/bfg-server-e2e.*/*.log
+          if-no-files-found: warn
+          retention-days: 7
