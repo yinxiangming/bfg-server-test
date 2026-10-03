@@ -29,7 +29,7 @@ import os
 import uuid
 import pytest
 
-from client_remote import RemoteAPIClient, get_base_url
+from client_remote import RemoteAPIClient, get_base_url, transport_headers
 
 
 def _get_platform_base():
@@ -45,7 +45,12 @@ def _get_workspace_base():
 
 def _login(base, email, password):
     import requests as http
-    r = http.post(f"{base}/api/v1/auth/token/", json={"email": email, "password": password}, timeout=10)
+    r = http.post(
+        f"{base}/api/v1/auth/token/",
+        headers=transport_headers(),
+        json={"email": email, "password": password},
+        timeout=10,
+    )
     assert r.status_code == 200, f"Login failed for {email}: {r.status_code} {r.text[:200]}"
     return r.json()["access"]
 
@@ -71,7 +76,11 @@ def _check_server_reachable(url: str, label: str) -> None:
     """Skip test if server is not reachable (standalone mode not running)."""
     import requests as http
     try:
-        http.get(f"{url}/api/v1/platform/plans/", timeout=3)
+        http.get(
+            f"{url}/api/v1/platform/plans/",
+            headers=transport_headers(),
+            timeout=3,
+        )
     except Exception:
         pytest.skip(f"{label} not reachable at {url} — start the standalone platform server first")
 
@@ -211,6 +220,7 @@ class TestStandaloneTokenExchange:
         # Try register, fallback to skip if not allowed
         reg = http.post(
             f"{platform_base}/api/v1/auth/register/",
+            headers=transport_headers(),
             json={"email": email, "password": password, "password_confirm": password},
             timeout=10,
         )
@@ -392,7 +402,7 @@ class TestStandaloneInternalAuth:
         r = http.post(
             f"{platform_base}/api/v1/platform/internal/provision-user/",
             json={"platform_user_id": "1", "email": "test@test.com", "name": "Test"},
-            headers={"Content-Type": "application/json"},
+            headers=transport_headers(**{"Content-Type": "application/json"}),
             timeout=10,
         )
         assert r.status_code in (401, 403)
@@ -403,10 +413,10 @@ class TestStandaloneInternalAuth:
         r = http.post(
             f"{platform_base}/api/v1/platform/internal/provision-user/",
             json={"platform_user_id": "1", "email": "test@test.com"},
-            headers={
+            headers=transport_headers(**{
                 "Content-Type": "application/json",
                 "X-Platform-API-Key": "wrong-key-12345",
-            },
+            }),
             timeout=10,
         )
         assert r.status_code in (401, 403)

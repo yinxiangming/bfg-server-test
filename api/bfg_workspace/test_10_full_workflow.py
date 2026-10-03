@@ -10,7 +10,15 @@ import uuid
 @pytest.mark.api_integration
 class TestFullWorkflow:
     
-    def test_complete_customer_journey(self, authenticated_client, workspace, user, message_templates):
+    def test_complete_customer_journey(
+        self,
+        authenticated_client,
+        customer_client,
+        customer,
+        workspace,
+        user,
+        message_templates,
+    ):
         """
         Test complete customer journey:
         1. Setup Store & Products
@@ -51,18 +59,19 @@ class TestFullWorkflow:
         
         # --- Step 2: Shopping ---
         # Create Cart
-        cart_res = authenticated_client.post('/api/v1/shop/carts/', {})
+        cart_res = customer_client.post('/api/v1/shop/carts/', {})
+        assert cart_res.status_code == 201, cart_res.data
         cart_id = cart_res.data['id']
         
         # Add to Cart
-        add_res = authenticated_client.post('/api/v1/shop/carts/add_item/', {
+        add_res = customer_client.post('/api/v1/shop/carts/add_item/', {
             "product": prod_id, "variant": var_id, "quantity": 1
         })
         assert add_res.status_code == 200
         
         # --- Step 3: Checkout ---
         # Create Address for order via API
-        addr_res = authenticated_client.post('/api/v1/me/addresses/', {
+        addr_res = customer_client.post('/api/v1/me/addresses/', {
             "full_name": "John Doe",
             "phone": "1234567890",
             "address_line1": "123 Main St",
@@ -74,7 +83,7 @@ class TestFullWorkflow:
         address_id = addr_res.data['id']
         
         # Use cart checkout to create order (proper flow)
-        checkout_res = authenticated_client.post('/api/v1/shop/carts/checkout/', {
+        checkout_res = customer_client.post('/api/v1/shop/carts/checkout/', {
             "store": store_id,
             "shipping_address": address_id,
             "billing_address": address_id  # Required field
@@ -128,6 +137,8 @@ class TestFullWorkflow:
         
         pay_res = authenticated_client.post('/api/v1/finance/payments/', {
             "order_id": order_id,
+            "invoice_id": invoices[0]['id'],
+            "customer_id": customer.id,
             "gateway_id": gateway_id,
             "currency_id": currency_id,
             "amount": str(order_total),  # Use calculated order total
@@ -135,6 +146,22 @@ class TestFullWorkflow:
         })
         assert pay_res.status_code == 201, pay_res.data
         payment_id = pay_res.data['id']
+
+        confirm_res = authenticated_client.post(
+            f'/api/v1/finance/payments/{payment_id}/process/',
+            {'reference': f'E2E-{suffix}'},
+        )
+        assert confirm_res.status_code == 200, confirm_res.data
+        assert confirm_res.data['status'] == 'completed'
+
+        paid_order_res = customer_client.get(f'/api/v1/store/orders/{order_id}/')
+        assert paid_order_res.status_code == 200, paid_order_res.data
+        assert paid_order_res.data['payment_status'] == 'paid'
+        paid_invoice_res = authenticated_client.get(
+            f"/api/v1/finance/invoices/{invoices[0]['id']}/"
+        )
+        assert paid_invoice_res.status_code == 200, paid_invoice_res.data
+        assert paid_invoice_res.data['status'] == 'paid'
 
         # --- Step 5: Fulfillment with Packages ---
         # Create package template via API
@@ -185,27 +212,31 @@ class TestFullWorkflow:
             "code": f"TC-001-{suffix}",
             "is_active": True
         })
-        if carrier_res.status_code == 201:
-            carrier_id = carrier_res.data['id']
-            service_res = authenticated_client.post('/api/v1/delivery/freight-services/', {
-                "carrier": carrier_id,
-                "name": f"Standard Shipping {suffix}",
-                "code": f"STD-{suffix}",
-                "base_price": "10.00",
-                "price_per_kg": "5.00",
-                "is_active": True
-            })
-            if service_res.status_code == 201:
-                service_id = service_res.data['id']
-                calc_res = authenticated_client.post('/api/v1/shop/order-packages/calculate_shipping/', {
-                    'order': order_id,
-                    'freight_service_id': service_id
-                })
-                if calc_res.status_code == 200:
-                    authenticated_client.post('/api/v1/shop/order-packages/update_order_shipping/', {
-                        'order': order_id,
-                        'freight_service_id': service_id
-                    })
+        assert carrier_res.status_code == 201, carrier_res.data
+        carrier_id = carrier_res.data['id']
+        service_res = authenticated_client.post('/api/v1/delivery/freight-services/', {
+            "carrier": carrier_id,
+            "name": f"Standard Shipping {suffix}",
+            "code": f"STD-{suffix}",
+            "base_price": "10.00",
+            "price_per_kg": "5.00",
+            "is_active": True
+        })
+        assert service_res.status_code == 201, service_res.data
+        service_id = service_res.data['id']
+        calc_res = authenticated_client.post('/api/v1/shop/order-packages/calculate_shipping/', {
+            'order': order_id,
+            'freight_service_id': service_id
+        })
+        assert calc_res.status_code == 200, calc_res.data
+        update_shipping_res = authenticated_client.post(
+            '/api/v1/shop/order-packages/update_order_shipping/',
+            {
+                'order': order_id,
+                'freight_service_id': service_id,
+            },
+        )
+        assert update_shipping_res.status_code == 200, update_shipping_res.data
 
         con_payload = {
             "order_ids": [order_id],
@@ -221,10 +252,10 @@ class TestFullWorkflow:
 
         order_detail_res = authenticated_client.get(f'/api/v1/shop/orders/{order_id}/')
         assert order_detail_res.status_code == 200
+        assert order_detail_res.data['payment_status'] == 'paid'
         assert 'packages' in order_detail_res.data
         assert isinstance(order_detail_res.data['packages'], list)
         if order_detail_res.data['packages']:
             assert len(order_detail_res.data['packages']) >= 1
         
-        # Verify final state
-        # Order should be paid, packages created, consignment created, notifications sent
+        assert con_res.data.get('id') or con_res.data.get('consignment_number')

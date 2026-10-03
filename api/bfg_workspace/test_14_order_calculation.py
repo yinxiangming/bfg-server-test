@@ -874,7 +874,7 @@ class TestOrderCalculation:
         add_res = customer_client.post('/api/v1/shop/carts/add_item/', {
             'product': products['products']['a'].id,
             'quantity': 2
-        })
+        }, HTTP_X_CART_ID=str(cart_res.data['id']))
         assert add_res.status_code == 200, add_res.data
         
         expected_subtotal = Decimal('200.00')
@@ -886,6 +886,7 @@ class TestOrderCalculation:
                 "shipping_address": customer_address_id,
                 "gift_card_code": gift_card["code"],
             },
+            HTTP_X_CART_ID=str(cart_res.data['id']),
         )
         
         assert checkout_res.status_code == 201, checkout_res.data
@@ -902,7 +903,53 @@ class TestOrderCalculation:
             tax=tax,
             discount=discount
         )
+        # Other active promotions in the shared workspace may contribute an
+        # additional discount; the gift-card debit is verified independently.
+        assert discount >= Decimal('50.00')
         assert Decimal(str(order_data['total'])) == expected_total
+
+        gift_after = authenticated_client.get(
+            f"/api/v1/marketing/gift-cards/{gift_card['id']}/"
+        )
+        assert gift_after.status_code == 200, gift_after.data
+        assert Decimal(str(gift_after.data['balance'])) == Decimal('0.00')
+        assert gift_after.data['is_active'] is False
+
+        orders_before = customer_client.get('/api/v1/store/orders/')
+        assert orders_before.status_code == 200, orders_before.data
+        before_count = (
+            orders_before.data.get('count')
+            if isinstance(orders_before.data, dict) and 'count' in orders_before.data
+            else len(orders_before.data if isinstance(orders_before.data, list) else orders_before.data.get('results', []))
+        )
+        new_cart = customer_client.post('/api/v1/shop/carts/', {})
+        assert new_cart.status_code == 201, new_cart.data
+        add_again = customer_client.post('/api/v1/shop/carts/add_item/', {
+            'product': products['products']['a'].id,
+            'quantity': 1,
+        }, HTTP_X_CART_ID=str(new_cart.data['id']))
+        assert add_again.status_code == 200, add_again.data
+        reuse = customer_client.post('/api/v1/shop/carts/checkout/', {
+            'store': store_data['store'].id,
+            'shipping_address': customer_address_id,
+            'gift_card_code': gift_card['code'],
+        }, HTTP_X_CART_ID=str(new_cart.data['id']))
+        assert reuse.status_code == 400, reuse.data
+        assert 'gift_card_code' in reuse.data
+
+        orders_after = customer_client.get('/api/v1/store/orders/')
+        assert orders_after.status_code == 200, orders_after.data
+        after_count = (
+            orders_after.data.get('count')
+            if isinstance(orders_after.data, dict) and 'count' in orders_after.data
+            else len(orders_after.data if isinstance(orders_after.data, list) else orders_after.data.get('results', []))
+        )
+        assert after_count == before_count
+        gift_final = authenticated_client.get(
+            f"/api/v1/marketing/gift-cards/{gift_card['id']}/"
+        )
+        assert gift_final.status_code == 200, gift_final.data
+        assert Decimal(str(gift_final.data['balance'])) == Decimal('0.00')
     
     def test_12_combined_coupon_and_gift_card(
         self,
@@ -1222,3 +1269,55 @@ class TestOrderCalculation:
         # Backend should apply $10 discount
         discount = Decimal(str(order_data.get("discount", "0.00")))
         assert discount == Decimal("10.00")
+
+    def test_17_client_cannot_override_checkout_amounts(
+        self,
+        customer_client,
+        customer,
+        setup_products,
+        setup_store_and_address,
+    ):
+        """Checkout ignores client-supplied tax, shipping, and discount amounts."""
+        products = setup_products
+        store_data = setup_store_and_address
+        customer_address_id = _create_shipping_address_via_api(
+            customer_client,
+            customer.id,
+            full_name='Amount Integrity Customer',
+        )
+
+        cart_res = customer_client.post('/api/v1/shop/carts/', {})
+        assert cart_res.status_code == 201, cart_res.data
+        add_res = customer_client.post('/api/v1/shop/carts/add_item/', {
+            'product': products['products']['a'].id,
+            'quantity': 1,
+        }, HTTP_X_CART_ID=str(cart_res.data['id']))
+        assert add_res.status_code == 200, add_res.data
+
+        checkout_res = customer_client.post('/api/v1/shop/carts/checkout/', {
+            'store': store_data['store'].id,
+            'shipping_address': customer_address_id,
+            'shipping_cost': '-999.00',
+            'tax': '-999.00',
+            'discount': '999.00',
+            'total': '-1998.00',
+        }, HTTP_X_CART_ID=str(cart_res.data['id']))
+        assert checkout_res.status_code == 201, checkout_res.data
+        order = checkout_res.data
+        assert Decimal(str(order['subtotal'])) == Decimal('100.00')
+        shipping_cost = Decimal(str(order.get('shipping_cost', '0.00')))
+        tax = Decimal(str(order.get('tax', '0.00')))
+        discount = Decimal(str(order.get('discount', '0.00')))
+        assert shipping_cost >= Decimal('0.00')
+        assert tax >= Decimal('0.00')
+        assert discount >= Decimal('0.00')
+        assert shipping_cost != Decimal('-999.00')
+        assert tax != Decimal('-999.00')
+        assert discount != Decimal('999.00')
+        assert Decimal(str(order['total'])) > Decimal('0.00')
+        assert Decimal(str(order['total'])) == (
+            Decimal(str(order['subtotal']))
+            + shipping_cost
+            + tax
+            - discount
+        )

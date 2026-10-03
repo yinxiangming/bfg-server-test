@@ -9,13 +9,15 @@ import uuid
 import pytest
 from decimal import Decimal
 
+from client_remote import RemoteAPIClient
+
 
 @pytest.mark.api_integration
 class TestStorefrontCart:
     """Test storefront cart-related API"""
     
-    def test_anonymous_cart_operations(self, workspace, admin_client, anonymous_api_client):
-        """Test anonymous user can operate cart"""
+    def test_anonymous_cart_operations(self, workspace, admin_client):
+        """A signed cart token, without cookies, must preserve the guest cart."""
         suf = uuid.uuid4().hex[:6]
         # Setup: Create product (admin_client is fixture: authenticated when remote, staff when local)
         cat_res = admin_client.post('/api/v1/shop/categories/', {
@@ -31,13 +33,26 @@ class TestStorefrontCart:
         prod_id = prod_res.data['id']
         
         # Test: Anonymous user can get/create cart
-        cart_res = anonymous_api_client.get('/api/v1/store/cart/current/')
+        token_issuer = RemoteAPIClient(
+            workspace=workspace,
+            token=None,
+            persist_cookies=False,
+        )
+        cart_res = token_issuer.get('/api/v1/store/cart/current/')
         assert cart_res.status_code == 200, (
             f"Storefront cart/current failed: {cart_res.status_code} {cart_res.data}"
         )
         assert 'id' in cart_res.data
         assert 'items' in cart_res.data
         assert 'total' in cart_res.data
+        assert cart_res.data.get('cart_token')
+
+        anonymous_api_client = RemoteAPIClient(
+            workspace=workspace,
+            token=None,
+            persist_cookies=False,
+        )
+        anonymous_api_client.use_cart_token(cart_res.data['cart_token'])
         
         # Test: Add item to cart
         add_res = anonymous_api_client.post('/api/v1/store/cart/add_item/', {
@@ -76,10 +91,25 @@ class TestStorefrontCart:
         clear_res = anonymous_api_client.post('/api/v1/store/cart/clear/')
         assert clear_res.status_code == 200
         assert len(clear_res.data['items']) == 0
+
+        tampered = RemoteAPIClient(workspace=workspace, token=None, persist_cookies=False)
+        tampered.use_cart_token(f"{cart_res.data['cart_token']}tampered")
+        tampered_res = tampered.get('/api/v1/store/cart/current/')
+        assert tampered_res.status_code == 400, tampered_res.data
+        assert 'cart_token' in tampered_res.data
     
-    def test_cart_merge_on_login(self, workspace, admin_client, anonymous_api_client, customer_client):
-        """Test guest cart and customer cart: anonymous then customer (three roles: anonymous, customer, admin)."""
+    def test_cart_merge_on_login(self, workspace, admin_client, customer_user):
+        """The signed guest cart is merged once into the logged-in customer's cart."""
         suf = uuid.uuid4().hex[:6]
+        existing_customer = RemoteAPIClient(
+            workspace=workspace,
+            token=customer_user.token,
+            persist_cookies=False,
+        )
+        clear_res = existing_customer.post('/api/v1/store/cart/clear/')
+        assert clear_res.status_code == 200, clear_res.data
+        assert clear_res.data['items'] == []
+
         # Setup: admin creates product
         cat_res = admin_client.post('/api/v1/shop/categories/', {
             "name": f"Toys {suf}", "slug": f"toys-{suf}", "language": "en", "is_active": True
@@ -94,24 +124,54 @@ class TestStorefrontCart:
         prod_id = prod_res.data['id']
         
         # Step 1: Anonymous user adds to cart
-        anonymous_api_client.get('/api/v1/store/cart/current/')  # Create session
-        add_res = anonymous_api_client.post('/api/v1/store/cart/add_item/', {
+        guest_client = RemoteAPIClient(workspace=workspace, token=None, persist_cookies=False)
+        current_res = guest_client.get('/api/v1/store/cart/current/')
+        assert current_res.status_code == 200, current_res.data
+        guest_token = current_res.data.get('cart_token')
+        assert guest_token
+        add_res = guest_client.post('/api/v1/store/cart/add_item/', {
             "product": prod_id,
             "quantity": 2
         })
         assert add_res.status_code == 200
-        assert len(add_res.data['items']) > 0
+        assert len(add_res.data['items']) == 1
+        assert add_res.data['items'][0]['quantity'] == 2
         
-        # Step 2: Customer (non-admin) can also use cart
-        auth_add_res = customer_client.post('/api/v1/store/cart/add_item/', {
-            "product": prod_id,
-            "quantity": 1
-        })
-        assert auth_add_res.status_code == 200
-        assert len(auth_add_res.data['items']) > 0
-        
-        # Note: Full cart merge testing requires actual login flow with session management
-        # which is better tested in integration tests with real HTTP sessions
+        # Step 2: simulate the first authenticated request carrying the guest token.
+        customer_client = RemoteAPIClient(
+            workspace=workspace,
+            token=customer_user.token,
+            persist_cookies=False,
+        )
+        customer_client.use_cart_token(guest_token)
+        merged_res = customer_client.get('/api/v1/store/cart/current/')
+        assert merged_res.status_code == 200, merged_res.data
+        assert len(merged_res.data['items']) == 1
+        assert merged_res.data['items'][0]['quantity'] == 2
+
+        # Replaying the same token must be idempotent, not double the quantity.
+        replay_res = customer_client.get('/api/v1/store/cart/current/')
+        assert replay_res.status_code == 200, replay_res.data
+        assert len(replay_res.data['items']) == 1
+        assert replay_res.data['items'][0]['quantity'] == 2
+
+    def test_guest_cart_token_is_workspace_bound(
+        self,
+        workspace,
+        workspace2,
+        admin_client,
+    ):
+        """A guest token minted by one workspace cannot address another workspace."""
+        source = RemoteAPIClient(workspace=workspace, token=None, persist_cookies=False)
+        source_res = source.get('/api/v1/store/cart/current/')
+        assert source_res.status_code == 200, source_res.data
+        assert source_res.data.get('cart_token')
+
+        target = RemoteAPIClient(workspace=workspace2, token=None, persist_cookies=False)
+        target.use_cart_token(source_res.data['cart_token'])
+        target_res = target.get('/api/v1/store/cart/current/')
+        assert target_res.status_code == 400, target_res.data
+        assert 'cart_token' in target_res.data
     
     def test_cart_item_enhanced_fields(self, workspace, admin_client, anonymous_api_client):
         """Test cart item enhanced fields (image_url, variant_options)"""
@@ -158,4 +218,3 @@ class TestStorefrontCart:
         assert 'image_url' in item  # May be None if no image
         assert 'variant_options' in item
         assert item['variant_options'] == {"size": "Medium", "color": "Blue"}
-
